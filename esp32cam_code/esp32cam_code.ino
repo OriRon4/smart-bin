@@ -29,6 +29,12 @@ const char* SERVER_URL = "http://10.0.0.231:5000/classify";
 
 
 // =========================================================
+// Camera State
+// =========================================================
+bool cameraReady = false;
+
+
+// =========================================================
 // AI Thinker ESP32-CAM Pins
 // =========================================================
 #define PWDN_GPIO_NUM     32
@@ -205,6 +211,10 @@ String sendPhotoBufferToServer(camera_fb_t* fb) {
 // Capture, Send To Server, Return JSON
 // =========================================================
 String captureSendAndReturnJson() {
+  if (!cameraReady) {
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Camera not initialized\"}";
+  }
+
   if (WiFi.status() != WL_CONNECTED) {
     bool wifiOk = connectToWiFi();
 
@@ -292,7 +302,7 @@ void setup() {
   digitalWrite(FLASH_LED_PIN, LOW);
 
   connectToWiFi();
-  initCamera();
+  cameraReady = initCamera();
 
   // לא מדפיסים כלום כאן במצב עבודה רגיל.
   // ה-ESP32 הראשי יקבל תשובה רק כשישלח CAPTURE.
