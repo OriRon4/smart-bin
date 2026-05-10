@@ -3,31 +3,6 @@
 #include "esp_camera.h"
 
 // =========================================================
-// Smart Bin - ESP32-CAM
-// WiFi + Camera + Python Server + UART to Main ESP32
-//
-// פקודות מה-ESP32 הראשי:
-// PING    -> מחזיר PONG
-// CAPTURE -> מצלם, שולח לשרת, מחזיר JSON
-//
-// חשוב:
-// במצב עבודה מול ESP32 ראשי לא מדפיסים Debug ל-Serial,
-// כי Serial הוא גם קו ה-UART שמחובר לבקר הראשי.
-// =========================================================
-
-
-// =========================================================
-// Debug
-// false = מצב עבודה מול ESP32 ראשי
-// true  = מצב בדיקה מול Serial Monitor בלבד
-// =========================================================
-#define DEBUG_MODE false
-
-#define DEBUG_PRINT(x)    if (DEBUG_MODE) { Serial.print(x); }
-#define DEBUG_PRINTLN(x)  if (DEBUG_MODE) { Serial.println(x); }
-
-
-// =========================================================
 // WiFi + Server
 // =========================================================
 const char* WIFI_SSID = "College";
@@ -91,13 +66,9 @@ bool connectToWiFi() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    DEBUG_PRINTLN("WiFi connected");
-    DEBUG_PRINT("IP: ");
-    DEBUG_PRINTLN(WiFi.localIP());
     return true;
   }
 
-  DEBUG_PRINTLN("WiFi connection failed");
   return false;
 }
 
@@ -147,14 +118,9 @@ bool initCamera() {
   esp_err_t err = esp_camera_init(&config);
 
   if (err != ESP_OK) {
-    DEBUG_PRINT("Camera init failed. Error: 0x");
-    if (DEBUG_MODE) {
-      Serial.println(err, HEX);
-    }
     return false;
   }
 
-  DEBUG_PRINTLN("Camera initialized");
   return true;
 }
 
@@ -229,7 +195,6 @@ String sendPhotoBufferToServer(camera_fb_t* fb) {
     return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Server response was not valid JSON\"}";
   }
 
-  String errorText = http.errorToString(httpResponseCode);
   http.end();
 
   return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"HTTP request failed\"}";
@@ -301,11 +266,6 @@ void handleMainCommand(String command) {
     return;
   }
 
-  if (command == "PING") {
-    Serial.println("PONG");
-    return;
-  }
-
   if (command == "CAPTURE") {
     String jsonResponse = captureSendAndReturnJson();
 
@@ -318,8 +278,6 @@ void handleMainCommand(String command) {
     Serial.println(jsonResponse);
     return;
   }
-
-  Serial.println("{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Unknown command\"}");
 }
 
 
@@ -333,19 +291,11 @@ void setup() {
   pinMode(FLASH_LED_PIN, OUTPUT);
   digitalWrite(FLASH_LED_PIN, LOW);
 
-  bool wifiOk = connectToWiFi();
-  bool cameraOk = initCamera();
-
-  if (!wifiOk) {
-    DEBUG_PRINTLN("WiFi failed");
-  }
-
-  if (!cameraOk) {
-    DEBUG_PRINTLN("Camera failed");
-  }
+  connectToWiFi();
+  initCamera();
 
   // לא מדפיסים כלום כאן במצב עבודה רגיל.
-  // ה-ESP32 הראשי יקבל תשובות רק כשישלח PING/CAPTURE.
+  // ה-ESP32 הראשי יקבל תשובה רק כשישלח CAPTURE.
 }
 
 
