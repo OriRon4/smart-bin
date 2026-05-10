@@ -19,12 +19,9 @@ import os
 # אחרי הבדיקות תבטל אותו בגוגל ותיצור חדש.
 API_KEY = "AIzaSyAK_zQxezhx82y8Lo4Cr95ZGqPaWQPJsw8"
 
-GEMINI_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash"
-]
+GEMINI_MODEL = "gemini-2.5-flash"
 
-MAX_RETRIES_PER_MODEL = 2
+MAX_GEMINI_RETRIES = 3
 RETRY_DELAY_SECONDS = 5
 
 LAST_IMAGE_PATH = "last_received_image.jpg"
@@ -139,46 +136,39 @@ def validate_result(result):
 def classify_image_with_gemini(image):
     last_error = None
 
-    for model_name in GEMINI_MODELS:
-        print(f"\nTrying Gemini model: {model_name}")
+    for attempt in range(1, MAX_GEMINI_RETRIES + 1):
+        try:
+            print(f"\nGemini attempt {attempt}/{MAX_GEMINI_RETRIES} with {GEMINI_MODEL}")
 
-        for attempt in range(1, MAX_RETRIES_PER_MODEL + 1):
-            try:
-                print(f"Attempt {attempt}/{MAX_RETRIES_PER_MODEL} with {model_name}")
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[RECYCLING_PROMPT, image],
+            )
 
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=[RECYCLING_PROMPT, image],
-                )
-
-                if not response.text:
-                    print("Gemini returned empty response.")
-                    last_error = "Empty Gemini response"
-                    continue
-
+            if not response.text:
+                print("Gemini returned empty response.")
+                last_error = "Empty Gemini response"
+            else:
                 parsed_result = clean_gemini_json(response.text)
                 validated_result = validate_result(parsed_result)
 
                 print("Validated Gemini result:")
                 print(validated_result)
-
                 return validated_result
 
-            except Exception as error:
-                last_error = error
-                print(f"Gemini failed with {model_name}, attempt {attempt}:")
-                print(error)
+        except Exception as error:
+            last_error = error
+            print(f"Gemini failed on attempt {attempt}:")
+            print(error)
 
-                if attempt < MAX_RETRIES_PER_MODEL:
-                    time.sleep(RETRY_DELAY_SECONDS)
+        if attempt < MAX_GEMINI_RETRIES:
+            time.sleep(RETRY_DELAY_SECONDS)
 
-        print(f"Finished retries for model: {model_name}")
-
-    print("All Gemini models failed.")
+    print(f"Gemini failed after {MAX_GEMINI_RETRIES} attempts.")
     print("Last error:")
     print(last_error)
 
-    return unknown("Gemini unavailable after retries.")
+    return unknown(f"Gemini unavailable after {MAX_GEMINI_RETRIES} attempts.")
 
 
 def save_received_image(image_bytes):

@@ -3,11 +3,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// =========================================================
-// Smart Bin - Main ESP32
-// Servos + Ultrasonic + Camera UART + OLED + Passive Buzzer
-// =========================================================
-
 
 // =========================================================
 // Servo Pins
@@ -25,8 +20,6 @@ const int ULTRASONIC_ECHO_PIN = 27;
 
 // =========================================================
 // Camera UART Pins
-// Main ESP32 RX מקבל מה-TX של המצלמה
-// Main ESP32 TX שולח ל-RX של המצלמה
 // =========================================================
 const int CAMERA_RX_PIN = 16;
 const int CAMERA_TX_PIN = 17;
@@ -46,6 +39,8 @@ const int BUZZER_PIN = 25;
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 #define OLED_ADDRESS 0x3C
+const int OLED_SDA_PIN = 21;
+const int OLED_SCL_PIN = 22;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
@@ -85,13 +80,15 @@ const unsigned long CAMERA_RESPONSE_TIMEOUT_MS = 30000;
 // אפשר לשנות דרך Serial:
 // threshold 7.5
 // =========================================================
-float OBJECT_DETECTION_THRESHOLD_CM = 8;
+float OBJECT_DETECTION_THRESHOLD_CM = 7.5;
+const int ULTRASONIC_CONFIRM_SAMPLES = 7;
+const unsigned long ULTRASONIC_SAMPLE_DELAY_MS = 60;
 
 
 // =========================================================
 // System State
 // =========================================================
-bool autoModeEnabled = false;
+bool autoModeEnabled = false;       //if needed to be auto without writing, change to true
 unsigned long lastDetectionTime = 0;
 
 
@@ -103,131 +100,6 @@ Servo topServo;
 
 
 // =========================================================
-// Buzzer Functions
-// =========================================================
-void initializeBuzzer() {
-  pinMode(BUZZER_PIN, OUTPUT);
-  noTone(BUZZER_PIN);
-
-  Serial.print("[INIT] Buzzer initialized on GPIO ");
-  Serial.println(BUZZER_PIN);
-}
-
-
-void beepShort() {
-  tone(BUZZER_PIN, 1000);
-  delay(120);
-  noTone(BUZZER_PIN);
-}
-
-
-void beepDouble() {
-  beepShort();
-  delay(120);
-  beepShort();
-}
-
-
-void beepLong() {
-  tone(BUZZER_PIN, 700);
-  delay(500);
-  noTone(BUZZER_PIN);
-}
-
-
-void beepSuccess() {
-  tone(BUZZER_PIN, 1200);
-  delay(120);
-  noTone(BUZZER_PIN);
-
-  delay(100);
-
-  tone(BUZZER_PIN, 1600);
-  delay(160);
-  noTone(BUZZER_PIN);
-}
-
-
-// =========================================================
-// OLED Functions
-// =========================================================
-void initializeOled() {
-  Serial.println("[INIT] Initializing OLED...");
-
-  Wire.begin(21, 22);
-
-  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
-    Serial.println("[INIT] OLED not found at 0x3C.");
-    oledReady = false;
-    return;
-  }
-
-  oledReady = true;
-  Serial.println("[INIT] OLED initialized.");
-
-  display.clearDisplay();
-  display.display();
-}
-
-
-void showOledMessage(String line1, String line2 = "", String line3 = "", String line4 = "") {
-  if (!oledReady) {
-    return;
-  }
-
-  display.clearDisplay();
-  display.setTextColor(SSD1306_WHITE);
-
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.println("SMART BIN");
-
-  display.drawLine(0, 11, 127, 11, SSD1306_WHITE);
-
-  display.setCursor(0, 18);
-  display.println(line1);
-
-  if (line2.length() > 0) {
-    display.setCursor(0, 30);
-    display.println(line2);
-  }
-
-  if (line3.length() > 0) {
-    display.setCursor(0, 42);
-    display.println(line3);
-  }
-
-  if (line4.length() > 0) {
-    display.setCursor(0, 54);
-    display.println(line4);
-  }
-
-  display.display();
-}
-
-
-void showReadyScreen() {
-  showOledMessage("READY", "Waiting object", autoModeEnabled ? "Auto: ON" : "Auto: OFF");
-}
-
-
-void showCategoryScreen(String category) {
-  category.toUpperCase();
-  showOledMessage("CATEGORY:", category, "Sorting...");
-}
-
-
-void showUnknownScreen() {
-  showOledMessage("UNKNOWN", "Sorting cancelled");
-}
-
-
-void showDoneScreen() {
-  showOledMessage("DONE", "Ready again");
-}
-
-
-// =========================================================
 // setup
 // =========================================================
 void setup() {
@@ -236,8 +108,7 @@ void setup() {
 
   Serial.println();
   Serial.println("==========================================");
-  Serial.println("Smart Bin - Main ESP32");
-  Serial.println("Servos + Ultrasonic + Camera UART + OLED + Buzzer");
+  Serial.println("Smart Bin - Project");
   Serial.println("==========================================");
 
   initializeServos();
@@ -320,6 +191,254 @@ void initializeCameraCommunication() {
   Serial.println(CAMERA_TX_PIN);
 
   Serial.println("[INIT] Camera UART initialized at 115200 baud.");
+}
+
+
+// =========================================================
+// OLED Functions
+// =========================================================
+void initializeOled() {
+  Serial.println("[INIT] Initializing OLED...");
+
+  Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
+    Serial.println("[INIT] OLED not found at 0x3C.");
+    oledReady = false;
+    return;
+  }
+
+  oledReady = true;
+  Serial.println("[INIT] OLED initialized.");
+
+  display.clearDisplay();
+  display.display();
+}
+
+
+void showOledMessage(String line1, String line2 = "", String line3 = "", String line4 = "") {
+  if (!oledReady) {
+    return;
+  }
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("SMART BIN");
+
+  display.drawLine(0, 11, 127, 11, SSD1306_WHITE);
+
+  display.setCursor(0, 18);
+  display.println(line1);
+
+  if (line2.length() > 0) {
+    display.setCursor(0, 30);
+    display.println(line2);
+  }
+
+  if (line3.length() > 0) {
+    display.setCursor(0, 42);
+    display.println(line3);
+  }
+
+  if (line4.length() > 0) {
+    display.setCursor(0, 54);
+    display.println(line4);
+  }
+
+  display.display();
+}
+
+
+void showReadyScreen() {
+  showOledMessage("READY", "Waiting for object", autoModeEnabled ? "Auto: ON" : "Auto: OFF");
+}
+
+
+void showCategoryScreen(String category) {
+  category.toUpperCase();
+  showOledMessage("CATEGORY:", category, "Sorting...");
+}
+
+
+void showUnknownScreen() {
+  showOledMessage("UNKNOWN", "Sorting cancelled");
+}
+
+
+void showDoneScreen() {
+  showOledMessage("DONE", "Ready again");
+}
+
+
+// =========================================================
+// Buzzer Functions
+// =========================================================
+void initializeBuzzer() {
+  pinMode(BUZZER_PIN, OUTPUT);
+  noTone(BUZZER_PIN);
+
+  Serial.print("[INIT] Buzzer initialized on GPIO ");
+  Serial.println(BUZZER_PIN);
+}
+
+
+void beepShort() {
+  tone(BUZZER_PIN, 1000);
+  delay(120);
+  noTone(BUZZER_PIN);
+}
+
+
+void beepDouble() {
+  beepShort();
+  delay(120);
+  beepShort();
+}
+
+
+void beepLong() {
+  tone(BUZZER_PIN, 700);
+  delay(500);
+  noTone(BUZZER_PIN);
+}
+
+
+void beepSuccess() {
+  tone(BUZZER_PIN, 1200);
+  delay(120);
+  noTone(BUZZER_PIN);
+
+  delay(100);
+
+  tone(BUZZER_PIN, 1600);
+  delay(160);
+  noTone(BUZZER_PIN);
+}
+
+
+// =========================================================
+// Read Distance In CM
+// מחזיר מרחק בס"מ
+// אם אין קריאה תקינה, מחזיר -1
+// =========================================================
+float readDistanceCm() {
+  digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(ULTRASONIC_TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+
+  digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
+
+  long duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH, 30000);
+
+  if (duration == 0) {
+    return -1;
+  }
+
+  float distanceCm = duration * 0.0343 / 2.0;
+  return distanceCm;
+}
+
+
+// =========================================================
+// Read Average Distance In CM
+// ממוצע קריאות תקינות בלבד
+// =========================================================
+float readAverageDistanceCm() {
+  float totalDistance = 0;
+  int validReadings = 0;
+
+  Serial.println("[ULTRASONIC] Reading average distance...");
+
+  for (int i = 0; i < ULTRASONIC_CONFIRM_SAMPLES; i++) {
+    float distance = readDistanceCm();
+
+    Serial.print("[ULTRASONIC] Sample ");
+    Serial.print(i + 1);
+    Serial.print("/");
+    Serial.print(ULTRASONIC_CONFIRM_SAMPLES);
+    Serial.print(": ");
+
+    if (distance < 0) {
+      Serial.println("invalid");
+    } else {
+      Serial.print(distance);
+      Serial.println(" cm");
+      totalDistance += distance;
+      validReadings++;
+    }
+
+    if (i < ULTRASONIC_CONFIRM_SAMPLES - 1) {
+      delay(ULTRASONIC_SAMPLE_DELAY_MS);
+    }
+  }
+
+  if (validReadings == 0) {
+    return -1;
+  }
+
+  return totalDistance / validReadings;
+}
+
+
+// =========================================================
+// Confirm Object By Average Distance
+// בודק ממוצע לפני צילום
+// =========================================================
+bool confirmObjectByAverageDistance() {
+  float averageDistance = readAverageDistanceCm();
+
+  if (averageDistance < 0) {
+    Serial.println("[ULTRASONIC] No valid readings. Capture cancelled.");
+    showOledMessage("ULTRASONIC ERROR", "No valid reading");
+    beepLong();
+    return false;
+  }
+
+  Serial.print("[ULTRASONIC] Average distance = ");
+  Serial.print(averageDistance);
+  Serial.println(" cm");
+
+  if (averageDistance > OBJECT_DETECTION_THRESHOLD_CM) {
+    Serial.println("[ULTRASONIC] Object not confirmed. Capture cancelled.");
+    showOledMessage("NO OBJECT", "Average:", String(averageDistance) + " cm");
+    beepLong();
+    return false;
+  }
+
+  Serial.println("[ULTRASONIC] Object confirmed by average distance.");
+  return true;
+}
+
+
+// =========================================================
+// Print Current Distance
+// =========================================================
+void printDistance() {
+  float distance = readDistanceCm();
+
+  if (distance < 0) {
+    Serial.println("[DISTANCE] No valid reading.");
+    showOledMessage("DISTANCE", "No valid reading");
+    return;
+  }
+
+  Serial.print("[DISTANCE] ");
+  Serial.print(distance);
+  Serial.print(" cm");
+
+  if (distance <= OBJECT_DETECTION_THRESHOLD_CM) {
+    Serial.print(" -> OBJECT DETECTED");
+    showOledMessage("DISTANCE", String(distance) + " cm", "OBJECT DETECTED");
+  } else {
+    showOledMessage("DISTANCE", String(distance) + " cm", "No object");
+  }
+
+  Serial.println();
 }
 
 
@@ -492,9 +611,15 @@ void testCameraPing() {
 // Request Capture From Camera
 // שולח CAPTURE למצלמה, מקבל JSON, ומפעיל מיון לפי category
 // =========================================================
-void requestCaptureFromCamera() {
+void requestCaptureFromCamera(bool requireUltrasonicConfirmation) {
   Serial.println();
   Serial.println("========== CAMERA CAPTURE TEST ==========");
+
+  if (requireUltrasonicConfirmation && !confirmObjectByAverageDistance()) {
+    Serial.println("=========================================");
+    returnToReadyState(1200);
+    return;
+  }
 
   showOledMessage("CAPTURING", "Please wait...");
   beepShort();
@@ -508,13 +633,21 @@ void requestCaptureFromCamera() {
     showOledMessage("CAPTURE FAILED", "No camera response");
     beepLong();
     Serial.println("=========================================");
-    delay(1500);
-    showReadyScreen();
+    returnToReadyState(1500);
     return;
   }
 
   Serial.println("[CAMERA UART] Camera returned:");
   Serial.println(response);
+
+  if (!response.startsWith("{")) {
+    Serial.println("[CAMERA UART] Capture failed. Response was not JSON.");
+    showOledMessage("CAPTURE FAILED", "Invalid response");
+    beepLong();
+    Serial.println("=========================================");
+    returnToReadyState(1500);
+    return;
+  }
 
   String category = extractCategoryFromCameraJson(response);
 
@@ -526,11 +659,9 @@ void requestCaptureFromCamera() {
     beepLong();
 
     Serial.println("[CAMERA UART] Unknown category. Sorting cancelled.");
-    moveToReadyPosition();
 
     Serial.println("=========================================");
-    delay(1500);
-    showReadyScreen();
+    returnToReadyState(1500);
     return;
   }
 
@@ -540,98 +671,6 @@ void requestCaptureFromCamera() {
   sortToCategory(category);
 
   Serial.println("=========================================");
-}
-
-
-// =========================================================
-// Read Distance In CM
-// מחזיר מרחק בס"מ
-// אם אין קריאה תקינה, מחזיר -1
-// =========================================================
-float readDistanceCm() {
-  digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
-  delayMicroseconds(2);
-
-  digitalWrite(ULTRASONIC_TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-
-  digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
-
-  long duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH, 30000);
-
-  if (duration == 0) {
-    return -1;
-  }
-
-  float distanceCm = duration * 0.0343 / 2.0;
-  return distanceCm;
-}
-
-
-// =========================================================
-// Is Object Detected
-// =========================================================
-bool isObjectDetected() {
-  float distance = readDistanceCm();
-
-  if (distance < 0) {
-    return false;
-  }
-
-  return distance <= OBJECT_DETECTION_THRESHOLD_CM;
-}
-
-
-// =========================================================
-// Check Ultrasonic And Handle Object
-// במצב אוטומטי, בודק אם יש חפץ
-// =========================================================
-void checkUltrasonicAndHandleObject() {
-  unsigned long now = millis();
-
-  if (now - lastDetectionTime < DETECTION_COOLDOWN_MS) {
-    return;
-  }
-
-  float distance = readDistanceCm();
-
-  if (distance < 0) {
-    return;
-  }
-
-  if (distance <= OBJECT_DETECTION_THRESHOLD_CM) {
-    Serial.println();
-    Serial.println("[AUTO] Object detected!");
-    Serial.print("[AUTO] Distance = ");
-    Serial.print(distance);
-    Serial.println(" cm");
-
-    showOledMessage("OBJECT DETECTED", "Distance:", String(distance) + " cm");
-    beepShort();
-
-    lastDetectionTime = now;
-
-    handleObjectDetected();
-  }
-}
-
-
-// =========================================================
-// Handle Object Detected
-// כשיש חפץ, מחכים רגע ואז מבקשים מהמצלמה category
-// =========================================================
-void handleObjectDetected() {
-  Serial.println("[PROCESS] Object handling started.");
-  Serial.print("[PROCESS] Waiting for object to settle: ");
-  Serial.print(OBJECT_SETTLE_DELAY_MS);
-  Serial.println(" ms");
-
-  showOledMessage("OBJECT DETECTED", "Stabilizing...");
-  delay(OBJECT_SETTLE_DELAY_MS);
-
-  requestCaptureFromCamera();
-
-  Serial.println("[PROCESS] Object handling finished.");
 }
 
 
@@ -653,6 +692,21 @@ void moveToReadyPosition() {
 
   Serial.print("[READY] Bottom center angle = ");
   Serial.println(BOTTOM_CENTER_ANGLE);
+}
+
+
+// =========================================================
+// Return To Ready State
+// חזרה למצב מוכן
+// =========================================================
+void returnToReadyState(unsigned long waitBeforeReadyScreenMs) {
+  moveToReadyPosition();
+
+  if (waitBeforeReadyScreenMs > 0) {
+    delay(waitBeforeReadyScreenMs);
+  }
+
+  showReadyScreen();
 }
 
 
@@ -747,10 +801,8 @@ void sortToCategory(String category) {
     Serial.println("[SORT] Unknown category. Sorting cancelled.");
     showUnknownScreen();
     beepLong();
-    moveToReadyPosition();
     Serial.println("========== SORTING CANCELLED ==========");
-    delay(1500);
-    showReadyScreen();
+    returnToReadyState(1500);
     return;
   }
 
@@ -817,29 +869,58 @@ void sortToCategory(String category) {
 
 
 // =========================================================
-// Print Current Distance
+// Check Ultrasonic And Handle Object
+// במצב אוטומטי, בודק אם יש חפץ
 // =========================================================
-void printDistance() {
-  float distance = readDistanceCm();
+void checkUltrasonicAndHandleObject() {
+  unsigned long now = millis();
 
-  if (distance < 0) {
-    Serial.println("[DISTANCE] No valid reading.");
-    showOledMessage("DISTANCE", "No valid reading");
+  if (now - lastDetectionTime < DETECTION_COOLDOWN_MS) {
     return;
   }
 
-  Serial.print("[DISTANCE] ");
-  Serial.print(distance);
-  Serial.print(" cm");
+  float distance = readDistanceCm();
 
-  if (distance <= OBJECT_DETECTION_THRESHOLD_CM) {
-    Serial.print(" -> OBJECT DETECTED");
-    showOledMessage("DISTANCE", String(distance) + " cm", "OBJECT DETECTED");
-  } else {
-    showOledMessage("DISTANCE", String(distance) + " cm", "No object");
+  if (distance < 0) {
+    return;
   }
 
-  Serial.println();
+  if (distance <= OBJECT_DETECTION_THRESHOLD_CM) {
+    Serial.println();
+    Serial.println("[AUTO] Object detected!");
+    Serial.print("[AUTO] Distance = ");
+    Serial.print(distance);
+    Serial.println(" cm");
+
+    showOledMessage("OBJECT DETECTED", "Distance:", String(distance) + " cm");
+    beepShort();
+
+    lastDetectionTime = now;
+
+    handleObjectDetected();
+
+    lastDetectionTime = millis();
+    Serial.println("[AUTO] Detection cooldown restarted after object handling.");
+  }
+}
+
+
+// =========================================================
+// Handle Object Detected
+// כשיש חפץ, מחכים רגע ואז מבקשים מהמצלמה category
+// =========================================================
+void handleObjectDetected() {
+  Serial.println("[PROCESS] Object handling started.");
+  Serial.print("[PROCESS] Waiting for object to settle: ");
+  Serial.print(OBJECT_SETTLE_DELAY_MS);
+  Serial.println(" ms");
+
+  showOledMessage("OBJECT DETECTED", "Stabilizing...");
+  delay(OBJECT_SETTLE_DELAY_MS);
+
+  requestCaptureFromCamera(true);
+
+  Serial.println("[PROCESS] Object handling finished.");
 }
 
 
@@ -874,8 +955,7 @@ void handleSerialCommands() {
   }
 
   if (command == "ready") {
-    moveToReadyPosition();
-    showReadyScreen();
+    returnToReadyState(0);
     return;
   }
 
@@ -916,9 +996,7 @@ void handleSerialCommands() {
     Serial.println("[MANUAL] Unknown category. No sorting.");
     showUnknownScreen();
     beepLong();
-    moveToReadyPosition();
-    delay(1500);
-    showReadyScreen();
+    returnToReadyState(1500);
     return;
   }
 
@@ -938,7 +1016,7 @@ void handleSerialCommands() {
   }
 
   if (command == "capture") {
-    requestCaptureFromCamera();
+    requestCaptureFromCamera(false);
     return;
   }
 
@@ -1065,9 +1143,9 @@ void printStatus() {
   Serial.print("OLED ready = ");
   Serial.println(oledReady ? "YES" : "NO");
   Serial.print("OLED SDA = ");
-  Serial.println(21);
+  Serial.println(OLED_SDA_PIN);
   Serial.print("OLED SCL = ");
-  Serial.println(22);
+  Serial.println(OLED_SCL_PIN);
 
   Serial.println();
 
