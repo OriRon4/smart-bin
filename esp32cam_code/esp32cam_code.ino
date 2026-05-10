@@ -1,322 +1,322 @@
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include "esp_camera.h"
+#include <WiFi.h> // ספרייה לחיבור המצלמה לרשת
+#include <HTTPClient.h> // ספרייה לשליחת תמונה לשרת
+#include "esp_camera.h" // ספרייה להפעלת המצלמה
 
 // =========================================================
-// WiFi + Server
+// רשת ושרת
 // =========================================================
-const char* WIFI_SSID = "College";
-const char* WIFI_PASSWORD = "Amal1@st";
+const char* WIFI_SSID = "College"; // שם הרשת שאליה המצלמה מתחברת
+const char* WIFI_PASSWORD = "Amal1@st"; // סיסמת הרשת של המצלמה
 
-// לשנות ל-IP של המחשב שעליו רץ שרת Python
-const char* SERVER_URL = "http://10.0.0.231:5000/classify";
-
-
-// =========================================================
-// Flash
-// =========================================================
-#define USE_FLASH true
-#define FLASH_LED_PIN 4
-#define FLASH_STABILIZE_DELAY_MS 600
+// לשנות ל-כתובת רשת של המחשב שעליו רץ שרת הזיהוי
+const char* SERVER_URL = "http://10.0.0.231:5000/classify"; // כתובת השרת שמקבל את התמונה
 
 
 // =========================================================
-// HTTP Settings
+// פלאש
 // =========================================================
-#define SERVER_SEND_RETRIES 3
-#define SERVER_RETRY_DELAY_MS 1200
-#define HTTP_TIMEOUT_MS 20000
-
-
-// =========================================================
-// Camera State
-// =========================================================
-bool cameraReady = false;
+#define USE_FLASH true // קובע אם להשתמש בפלאש בצילום
+#define FLASH_LED_PIN 4 // פין הפלאש במודול המצלמה
+#define FLASH_STABILIZE_DELAY_MS 600 // זמן ייצוב התאורה לפני צילום
 
 
 // =========================================================
-// AI Thinker ESP32-CAM Pins
+// הגדרות בקשת רשת
 // =========================================================
-#define PWDN_GPIO_NUM     32
-#define RESET_GPIO_NUM    -1
-#define XCLK_GPIO_NUM      0
-#define SIOD_GPIO_NUM     26
-#define SIOC_GPIO_NUM     27
-
-#define Y9_GPIO_NUM       35
-#define Y8_GPIO_NUM       34
-#define Y7_GPIO_NUM       39
-#define Y6_GPIO_NUM       36
-#define Y5_GPIO_NUM       21
-#define Y4_GPIO_NUM       19
-#define Y3_GPIO_NUM       18
-#define Y2_GPIO_NUM        5
-
-#define VSYNC_GPIO_NUM    25
-#define HREF_GPIO_NUM     23
-#define PCLK_GPIO_NUM     22
+#define SERVER_SEND_RETRIES 3 // מספר ניסיונות שליחה לשרת
+#define SERVER_RETRY_DELAY_MS 1200 // המתנה בין ניסיונות שליחה
+#define HTTP_TIMEOUT_MS 20000 // זמן מקסימלי לבקשת השרת
 
 
 // =========================================================
-// Connect To WiFi
+// מצב מצלמה
 // =========================================================
-bool connectToWiFi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+bool cameraReady = false; // שומר אם המצלמה אותחלה בהצלחה
 
-  int attempts = 0;
 
-  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
-    delay(500);
-    attempts++;
+// =========================================================
+// פיני מודול המצלמה
+// =========================================================
+#define PWDN_GPIO_NUM     32 // פין כיבוי של מודול המצלמה
+#define RESET_GPIO_NUM    -1 // פין איפוס של מודול המצלמה
+#define XCLK_GPIO_NUM      0 // פין שעון ראשי של המצלמה
+#define SIOD_GPIO_NUM     26 // פין נתוני בקרה של המצלמה
+#define SIOC_GPIO_NUM     27 // פין שעון בקרה של המצלמה
+
+#define Y9_GPIO_NUM       35 // פין נתוני תמונה מהמצלמה
+#define Y8_GPIO_NUM       34 // פין נתוני תמונה מהמצלמה
+#define Y7_GPIO_NUM       39 // פין נתוני תמונה מהמצלמה
+#define Y6_GPIO_NUM       36 // פין נתוני תמונה מהמצלמה
+#define Y5_GPIO_NUM       21 // פין נתוני תמונה מהמצלמה
+#define Y4_GPIO_NUM       19 // פין נתוני תמונה מהמצלמה
+#define Y3_GPIO_NUM       18 // פין נתוני תמונה מהמצלמה
+#define Y2_GPIO_NUM        5 // פין נתוני תמונה מהמצלמה
+
+#define VSYNC_GPIO_NUM    25 // פין סנכרון אנכי של התמונה
+#define HREF_GPIO_NUM     23 // פין סנכרון שורה של התמונה
+#define PCLK_GPIO_NUM     22 // פין שעון פיקסלים של המצלמה
+
+
+// =========================================================
+// חיבור לרשת
+// =========================================================
+bool connectToWiFi() { // מחבר את המצלמה לרשת
+  WiFi.mode(WIFI_STA); // מגדיר את המצלמה כלקוח רשת
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // מתחבר לרשת כדי לשלוח תמונות לשרת
+
+  int attempts = 0; // סופר ניסיונות חיבור לרשת
+
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) { // מנסה להתחבר לרשת לפני צילום
+    delay(500); // נותן לסרווים זמן להיצמד למצב התחלתי
+    attempts++; // סופר ניסיון חיבור נוסף לרשת
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    return true;
+  if (WiFi.status() == WL_CONNECTED) { // אם המצלמה מחוברת לרשת
+    return true; // מחזיר שהפעולה הצליחה
   }
 
-  return false;
+  return false; // מחזיר שהפעולה נכשלה
 }
 
 
 // =========================================================
-// Init Camera
+// אתחול מצלמה
 // =========================================================
-bool initCamera() {
-  camera_config_t config;
+bool initCamera() { // מאתחל את מודול המצלמה
+  camera_config_t config; // יוצר מבנה הגדרות למצלמה
 
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
+  config.ledc_channel = LEDC_CHANNEL_0; // מגדיר ערוץ שעון למצלמה
+  config.ledc_timer = LEDC_TIMER_0; // מגדיר טיימר שעון למצלמה
 
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
+  config.pin_d0 = Y2_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
+  config.pin_d1 = Y3_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
+  config.pin_d2 = Y4_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
+  config.pin_d3 = Y5_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
+  config.pin_d4 = Y6_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
+  config.pin_d5 = Y7_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
+  config.pin_d6 = Y8_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
+  config.pin_d7 = Y9_GPIO_NUM; // מחבר קו נתוני תמונה להגדרות
 
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
+  config.pin_xclk = XCLK_GPIO_NUM; // מחבר את שעון המצלמה להגדרות
+  config.pin_pclk = PCLK_GPIO_NUM; // מחבר את שעון הפיקסלים להגדרות
+  config.pin_vsync = VSYNC_GPIO_NUM; // מחבר סנכרון אנכי להגדרות
+  config.pin_href = HREF_GPIO_NUM; // מחבר סנכרון שורה להגדרות
 
-  config.pin_sccb_sda = SIOD_GPIO_NUM;
-  config.pin_sccb_scl = SIOC_GPIO_NUM;
+  config.pin_sccb_sda = SIOD_GPIO_NUM; // מחבר נתוני בקרה להגדרות
+  config.pin_sccb_scl = SIOC_GPIO_NUM; // מחבר שעון בקרה להגדרות
 
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
+  config.pin_pwdn = PWDN_GPIO_NUM; // מחבר פין כיבוי להגדרות
+  config.pin_reset = RESET_GPIO_NUM; // מחבר פין איפוס להגדרות
 
-  config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_JPEG;
+  config.xclk_freq_hz = 20000000; // קובע תדר עבודה למצלמה
+  config.pixel_format = PIXFORMAT_JPEG; // קובע צילום בפורמט תמונה דחוס
 
-  if (psramFound()) {
-    config.frame_size = FRAMESIZE_VGA;
-    config.jpeg_quality = 12;
-    config.fb_count = 2;
-  } else {
-    config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 15;
-    config.fb_count = 1;
+  if (psramFound()) { // אם יש זיכרון נוסף לתמונה טובה יותר
+    config.frame_size = FRAMESIZE_VGA; // בוחר רזולוציה גבוהה כשיש זיכרון
+    config.jpeg_quality = 12; // קובע איכות תמונה טובה יותר
+    config.fb_count = 2; // משתמש בשני מאגרי תמונה
+  } else { // משתמש בהגדרות קלות יותר ללא זיכרון נוסף
+    config.frame_size = FRAMESIZE_QVGA; // בוחר רזולוציה קלה ללא זיכרון נוסף
+    config.jpeg_quality = 15; // מוריד מעט איכות כדי לחסוך זיכרון
+    config.fb_count = 1; // משתמש במאגר תמונה אחד
   }
 
-  esp_err_t err = esp_camera_init(&config);
+  esp_err_t err = esp_camera_init(&config); // מנסה להפעיל את המצלמה
 
-  if (err != ESP_OK) {
-    return false;
+  if (err != ESP_OK) { // אם אתחול המצלמה נכשל
+    return false; // מחזיר שהפעולה נכשלה
   }
 
-  return true;
+  return true; // מחזיר שהפעולה הצליחה
 }
 
 
 // =========================================================
-// Flash
+// פלאש
 // =========================================================
-void turnFlashOn() {
-  if (USE_FLASH) {
-    digitalWrite(FLASH_LED_PIN, HIGH);
-    delay(FLASH_STABILIZE_DELAY_MS);
+void turnFlashOn() { // מדליק תאורה לפני צילום
+  if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
+    digitalWrite(FLASH_LED_PIN, HIGH); // מדליק פלאש לפני צילום
+    delay(FLASH_STABILIZE_DELAY_MS); // שומר על תזמון התהליך
   }
 }
 
 
-void turnFlashOff() {
-  if (USE_FLASH) {
-    digitalWrite(FLASH_LED_PIN, LOW);
+void turnFlashOff() { // מכבה תאורה אחרי צילום
+  if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
+    digitalWrite(FLASH_LED_PIN, LOW); // מכבה פלאש אחרי צילום
   }
 }
 
 
 // =========================================================
-// Send Photo Buffer To Python Server
-// מחזיר את ה-JSON שהשרת החזיר
+// שליחת תמונה לשרת
+// מחזיר את תשובת הנתונים שהשרת החזיר
 // =========================================================
-String sendPhotoBufferToServer(camera_fb_t* fb) {
-  HTTPClient http;
+String sendPhotoBufferToServer(camera_fb_t* fb) { // שולח את התמונה לשרת הזיהוי
+  HTTPClient http; // יוצר אובייקט לשליחת התמונה לשרת
 
-  http.begin(SERVER_URL);
-  http.setTimeout(HTTP_TIMEOUT_MS);
+  http.begin(SERVER_URL); // פותח חיבור לשרת הזיהוי
+  http.setTimeout(HTTP_TIMEOUT_MS); // מגביל זמן המתנה לשרת
 
-  String boundary = "----SmartBinBoundary";
-  String contentType = "multipart/form-data; boundary=" + boundary;
+  String boundary = "----SmartBinBoundary"; // יוצר גבול לבקשת העלאת התמונה
+  String contentType = "multipart/form-data; boundary=" + boundary; // מגדיר בקשת רשת עם תמונה
 
-  http.addHeader("Content-Type", contentType);
+  http.addHeader("Content-Type", contentType); // מגדיר שהבקשה כוללת תמונה
 
-  String bodyStart =
+  String bodyStart = // בונה את תחילת בקשת העלאת התמונה
     "--" + boundary + "\r\n"
     "Content-Disposition: form-data; name=\"image\"; filename=\"esp32cam.jpg\"\r\n"
     "Content-Type: image/jpeg\r\n\r\n";
 
-  String bodyEnd =
+  String bodyEnd = // בונה את סוף בקשת העלאת התמונה
     "\r\n--" + boundary + "--\r\n";
 
-  int totalLength = bodyStart.length() + fb->len + bodyEnd.length();
+  int totalLength = bodyStart.length() + fb->len + bodyEnd.length(); // מחשב גודל מלא של הבקשה
 
-  uint8_t* requestBody = (uint8_t*)malloc(totalLength);
+  uint8_t* requestBody = (uint8_t*)malloc(totalLength); // מקצה זיכרון לבקשת התמונה
 
-  if (!requestBody) {
-    http.end();
-    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"ESP32-CAM memory allocation failed\"}";
+  if (!requestBody) { // אם אין מספיק זיכרון לשליחת התמונה
+    http.end(); // סוגר את חיבור השרת
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"ESP32-CAM memory allocation failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  memcpy(requestBody, bodyStart.c_str(), bodyStart.length());
-  memcpy(requestBody + bodyStart.length(), fb->buf, fb->len);
-  memcpy(requestBody + bodyStart.length() + fb->len, bodyEnd.c_str(), bodyEnd.length());
+  memcpy(requestBody, bodyStart.c_str(), bodyStart.length()); // מוסיף את פתיחת בקשת התמונה
+  memcpy(requestBody + bodyStart.length(), fb->buf, fb->len); // מוסיף את נתוני התמונה לבקשה
+  memcpy(requestBody + bodyStart.length() + fb->len, bodyEnd.c_str(), bodyEnd.length()); // מוסיף את סוף בקשת התמונה
 
-  int httpResponseCode = http.POST(requestBody, totalLength);
+  int httpResponseCode = http.POST(requestBody, totalLength); // שולח את תמונת החפץ לשרת
 
-  free(requestBody);
+  free(requestBody); // משחרר זיכרון אחרי השליחה
 
-  if (httpResponseCode == 200) {
-    String response = http.getString();
-    response.trim();
-    http.end();
+  if (httpResponseCode == 200) { // אם השרת קיבל את התמונה בהצלחה
+    String response = http.getString(); // קורא את תשובת הזיהוי מהשרת
+    response.trim(); // מנקה רווחים מתשובת המצלמה
+    http.end(); // סוגר את חיבור השרת
 
-    if (response.startsWith("{")) {
-      return response;
+    if (response.startsWith("{")) { // אם התקבלה תשובת נתונים תקינה
+      return response; // מחזיר את תשובת המצלמה לעיבוד
     }
 
-    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Server response was not valid JSON\"}";
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Server response was not valid JSON\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  http.end();
+  http.end(); // סוגר את חיבור השרת
 
-  return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"HTTP request failed\"}";
+  return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"HTTP request failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
 }
 
 
 // =========================================================
-// Capture, Send To Server, Return JSON
+// צילום שליחה והחזרת תשובה
 // =========================================================
-String captureSendAndReturnJson() {
-  if (!cameraReady) {
-    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Camera not initialized\"}";
+String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהוי
+  if (!cameraReady) { // אם המצלמה לא מוכנה לצילום
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Camera not initialized\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
-    bool wifiOk = connectToWiFi();
+  if (WiFi.status() != WL_CONNECTED) { // אם צריך להתחבר מחדש לרשת
+    bool wifiOk = connectToWiFi(); // שומר אם החיבור לרשת הצליח
 
-    if (!wifiOk) {
-      return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"WiFi not connected\"}";
+    if (!wifiOk) { // אם המצלמה לא הצליחה להתחבר לרשת
+      return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"WiFi not connected\"}"; // מחזיר כשל בפורמט שהבקר מבין
     }
   }
 
-  turnFlashOn();
+  turnFlashOn(); // מדליק תאורה לצילום ברור
 
-  // פריים חימום
-  camera_fb_t* warmupFb = esp_camera_fb_get();
+// פריים חימום
+  camera_fb_t* warmupFb = esp_camera_fb_get(); // מקבל תמונה מהמצלמה
 
-  if (warmupFb) {
-    esp_camera_fb_return(warmupFb);
+  if (warmupFb) { // אם התקבלה תמונת חימום
+    esp_camera_fb_return(warmupFb); // משחרר את תמונת החימום
   }
 
-  delay(200);
+  delay(200); // נותן למצלמה להתייצב אחרי חימום
 
-  camera_fb_t* fb = esp_camera_fb_get();
+  camera_fb_t* fb = esp_camera_fb_get(); // מקבל תמונה מהמצלמה
 
-  turnFlashOff();
+  turnFlashOff(); // מכבה תאורה אחרי הצילום
 
-  if (!fb) {
-    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Camera capture failed\"}";
+  if (!fb) { // אם הצילום מהמצלמה נכשל
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Camera capture failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  String serverResponse = "";
+  String serverResponse = ""; // שומר את תשובת השרת לזיהוי
 
-  for (int attempt = 1; attempt <= SERVER_SEND_RETRIES; attempt++) {
-    serverResponse = sendPhotoBufferToServer(fb);
+  for (int attempt = 1; attempt <= SERVER_SEND_RETRIES; attempt++) { // מנסה לשלוח את התמונה כמה פעמים
+    serverResponse = sendPhotoBufferToServer(fb); // שומר את תשובת השרת לניסיון הנוכחי
 
-    if (serverResponse.startsWith("{") && serverResponse.indexOf("\"success\":true") != -1) {
-      break;
+    if (serverResponse.startsWith("{") && serverResponse.indexOf("\"success\":true") != -1) { // אם השרת החזיר זיהוי מוצלח
+      break; // עוצר ניסיונות כי הזיהוי הצליח
     }
 
-    if (attempt < SERVER_SEND_RETRIES) {
-      delay(SERVER_RETRY_DELAY_MS);
+    if (attempt < SERVER_SEND_RETRIES) { // אם נשאר ניסיון שליחה נוסף
+      delay(SERVER_RETRY_DELAY_MS); // שומר על תזמון התהליך
     }
   }
 
-  esp_camera_fb_return(fb);
+  esp_camera_fb_return(fb); // משחרר את התמונה אחרי שליחה
 
-  if (serverResponse.length() == 0) {
-    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"No response from server\"}";
+  if (serverResponse.length() == 0) { // אם השרת לא החזיר תשובה
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"No response from server\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  return serverResponse;
+  return serverResponse; // מחזיר לבקר את תשובת השרת
 }
 
 
 // =========================================================
-// Handle Command From Main ESP32
+// טיפול בפקודת הבקר הראשי
 // =========================================================
-void handleMainCommand(String command) {
-  command.trim();
+void handleMainCommand(String command) { // מטפל בפקודה מהבקר הראשי
+  command.trim(); // מנקה רווחים מהפקודה שהתקבלה
 
-  if (command.length() == 0) {
-    return;
+  if (command.length() == 0) { // אם התקבלה פקודה ריקה
+    return; // עוצר את הפעולה בנקודה זו
   }
 
-  if (command == "CAPTURE") {
-    String jsonResponse = captureSendAndReturnJson();
+  if (command == "CAPTURE") { // אם הבקר ביקש צילום וזיהוי
+    String jsonResponse = captureSendAndReturnJson(); // שומר את התשובה שתישלח לבקר
 
-    jsonResponse.trim();
+    jsonResponse.trim(); // מנקה רווחים מתשובת הזיהוי
 
-    if (!jsonResponse.startsWith("{")) {
-      jsonResponse = "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Invalid JSON response\"}";
+    if (!jsonResponse.startsWith("{")) { // אם תשובת הזיהוי לא תקינה
+      jsonResponse = "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Invalid JSON response\"}"; // מייצר תשובת כשל כשהפורמט לא תקין
     }
 
-    Serial.println(jsonResponse);
-    return;
+    Serial.println(jsonResponse); // מחזיר לבקר הראשי תשובת זיהוי אחת
+    return; // עוצר את הפעולה בנקודה זו
   }
 }
 
 
 // =========================================================
-// setup
+// אתחול ראשוני
 // =========================================================
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
+void setup() { // מכין את רכיבי המערכת להפעלה
+  Serial.begin(115200); // פותח קו תקשורת מול הבקר הראשי
+  delay(1000); // נותן לרכיבים להתייצב אחרי ההפעלה
 
-  pinMode(FLASH_LED_PIN, OUTPUT);
-  digitalWrite(FLASH_LED_PIN, LOW);
+  pinMode(FLASH_LED_PIN, OUTPUT); // מגדיר את הפלאש כפלט
+  digitalWrite(FLASH_LED_PIN, LOW); // מכבה פלאש אחרי צילום
 
-  connectToWiFi();
-  cameraReady = initCamera();
+  connectToWiFi(); // מחבר את המצלמה לרשת בתחילת העבודה
+  cameraReady = initCamera(); // שומר אם המצלמה מוכנה לצילום
 
-  // לא מדפיסים כלום כאן במצב עבודה רגיל.
-  // ה-ESP32 הראשי יקבל תשובה רק כשישלח CAPTURE.
+// לא מדפיסים כלום כאן במצב עבודה רגיל.
+// הבקר הראשי יקבל תשובה רק כשישלח צילום.
 }
 
 
 // =========================================================
-// loop
+// לולאת עבודה
 // =========================================================
-void loop() {
-  if (Serial.available()) {
-    String command = Serial.readStringUntil('\n');
-    handleMainCommand(command);
+void loop() { // מריץ את עבודת המערכת ברצף
+  if (Serial.available()) { // בודק אם הבקר שלח פקודה
+    String command = Serial.readStringUntil('\n'); // קורא פקודה מהבקר הראשי
+    handleMainCommand(command); // מפעיל טיפול בפקודת צילום מהבקר
   }
 
-  delay(20);
+  delay(20); // מונע קריאה רציפה מדי מהתקשורת
 }
