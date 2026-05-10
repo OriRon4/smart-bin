@@ -1000,11 +1000,6 @@ void handleSerialCommands() {
     return;
   }
 
-  if (command == "run") {
-    sortToCategory("plastic");
-    return;
-  }
-
   if (command == "distance") {
     printDistance();
     return;
