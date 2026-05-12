@@ -67,7 +67,7 @@ bool connectToWiFi() { // מחבר את המצלמה לרשת
   int attempts = 0; // סופר ניסיונות חיבור לרשת
 
   while (WiFi.status() != WL_CONNECTED && attempts < 40) { // מנסה להתחבר לרשת לפני צילום
-    delay(500); // נותן לסרווים זמן להיצמד למצב התחלתי
+    delay(500); // נותן ל-WiFi זמן להשלים ניסיון חיבור
     attempts++; // סופר ניסיון חיבור נוסף לרשת
   }
 
@@ -137,7 +137,7 @@ bool initCamera() { // מאתחל את מודול המצלמה
 void turnFlashOn() { // מדליק תאורה לפני צילום
   if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
     digitalWrite(FLASH_LED_PIN, HIGH); // מדליק פלאש לפני צילום
-    delay(FLASH_STABILIZE_DELAY_MS); // שומר על תזמון התהליך
+    delay(FLASH_STABILIZE_DELAY_MS); // ממתין לייצוב התאורה לפני הצילום
   }
 }
 
@@ -191,11 +191,11 @@ String sendPhotoBufferToServer(camera_fb_t* fb) { // שולח את התמונה 
 
   if (httpResponseCode == 200) { // אם השרת קיבל את התמונה בהצלחה
     String response = http.getString(); // קורא את תשובת הזיהוי מהשרת
-    response.trim(); // מנקה רווחים מתשובת המצלמה
+    response.trim(); // מנקה רווחים מתשובת השרת
     http.end(); // סוגר את חיבור השרת
 
-    if (response.startsWith("{")) { // אם התקבלה תשובת נתונים תקינה
-      return response; // מחזיר את תשובת המצלמה לעיבוד
+    if (response.startsWith("{")) { // אם התקבלה תשובה שנראית כמו JSON
+      return response; // מחזיר את תשובת השרת לבקר הראשי
     }
 
     return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Server response was not valid JSON\"}"; // מחזיר כשל בפורמט שהבקר מבין
@@ -208,7 +208,7 @@ String sendPhotoBufferToServer(camera_fb_t* fb) { // שולח את התמונה 
 
 
 // =========================================================
-// צילום שליחה והחזרת תשובה
+// צילום, שליחה והחזרת תשובה
 // =========================================================
 String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהוי
   if (!cameraReady) { // אם המצלמה לא מוכנה לצילום
@@ -225,8 +225,8 @@ String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהו
 
   turnFlashOn(); // מדליק תאורה לצילום ברור
 
-// פריים חימום
-  camera_fb_t* warmupFb = esp_camera_fb_get(); // מקבל תמונה מהמצלמה
+// צילום חימום לייצוב המצלמה לפני התמונה המרכזית
+  camera_fb_t* warmupFb = esp_camera_fb_get(); // מקבל תמונת חימום מהמצלמה
 
   if (warmupFb) { // אם התקבלה תמונת חימום
     esp_camera_fb_return(warmupFb); // משחרר את תמונת החימום
@@ -252,7 +252,7 @@ String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהו
     }
 
     if (attempt < SERVER_SEND_RETRIES) { // אם נשאר ניסיון שליחה נוסף
-      delay(SERVER_RETRY_DELAY_MS); // שומר על תזמון התהליך
+      delay(SERVER_RETRY_DELAY_MS); // ממתין לפני ניסיון שליחה נוסף לשרת
     }
   }
 
@@ -273,7 +273,7 @@ void handleMainCommand(String command) { // מטפל בפקודה מהבקר ה�
   command.trim(); // מנקה רווחים מהפקודה שהתקבלה
 
   if (command.length() == 0) { // אם התקבלה פקודה ריקה
-    return; // עוצר את הפעולה בנקודה זו
+    return; // מתעלם מפקודה ריקה
   }
 
   if (command == "CAPTURE") { // אם הבקר ביקש צילום וזיהוי
@@ -281,12 +281,12 @@ void handleMainCommand(String command) { // מטפל בפקודה מהבקר ה�
 
     jsonResponse.trim(); // מנקה רווחים מתשובת הזיהוי
 
-    if (!jsonResponse.startsWith("{")) { // אם תשובת הזיהוי לא תקינה
+    if (!jsonResponse.startsWith("{")) { // אם תשובת הזיהוי אינה נראית כמו JSON
       jsonResponse = "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Invalid JSON response\"}"; // מייצר תשובת כשל כשהפורמט לא תקין
     }
 
     Serial.println(jsonResponse); // מחזיר לבקר הראשי תשובת זיהוי אחת
-    return; // עוצר את הפעולה בנקודה זו
+    return; // עוצר כי פקודת הצילום כבר טופלה
   }
 }
 
@@ -295,11 +295,11 @@ void handleMainCommand(String command) { // מטפל בפקודה מהבקר ה�
 // אתחול ראשוני
 // =========================================================
 void setup() { // מכין את רכיבי המערכת להפעלה
-  Serial.begin(115200); // פותח קו תקשורת מול הבקר הראשי
+  Serial.begin(115200); // פותח UART מול הבקר הראשי לקבלת CAPTURE והחזרת JSON
   delay(1000); // נותן לרכיבים להתייצב אחרי ההפעלה
 
   pinMode(FLASH_LED_PIN, OUTPUT); // מגדיר את הפלאש כפלט
-  digitalWrite(FLASH_LED_PIN, LOW); // מכבה פלאש אחרי צילום
+  digitalWrite(FLASH_LED_PIN, LOW); // מוודא שהפלאש כבוי בתחילת העבודה
 
   connectToWiFi(); // מחבר את המצלמה לרשת בתחילת העבודה
   cameraReady = initCamera(); // שומר אם המצלמה מוכנה לצילום

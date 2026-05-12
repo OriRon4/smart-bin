@@ -191,7 +191,7 @@ void setupWebServer() { // מגדיר את כתובות הדשבורד
 void handleDashboard() { // שולח לדפדפן את עמוד הסטטיסטיקות
   String html = ""; // בונה את עמוד הדשבורד
 
-  html += "<!DOCTYPE html><html><head><meta charset='UTF-8'>"; // מגדיר עמוד תקין בעברית ואנגלית
+  html += "<!DOCTYPE html><html><head><meta charset='UTF-8'>"; // מתחיל את עמוד הדשבורד ומגדיר קידוד תווים
   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>"; // מתאים את העמוד לטלפון
   html += "<title>Smart Bin Dashboard</title>"; // כותרת הדפדפן
   html += "<style>"; // מוסיף עיצוב בסיסי לדשבורד
@@ -308,7 +308,7 @@ void updateStatsForCategory(String category) { // מעדכן מונים לפי �
     lastCategory = "unknown"; // שומר שהתוצאה האחרונה לא זוהתה
   }
 
-  saveStats(); // שומר את המונים מיד אחרי אירוע זיהוי
+  saveStats(); // שומר את הסטטיסטיקה לאחר עדכון הקטגוריה
 }
 
 
@@ -576,11 +576,7 @@ String readCameraResponse() { // ממתין לתשובת המצלמה
         continue; // מתעלם משורה ריקה וממשיך להמתין לתשובת מצלמה
       }
 
-      if (response == "PONG") { // אם התקבלה תשובת בדיקה ישנה
-        return response; // מחזיר תשובת בדיקה אם נשארה מהגרסה הקודמת
-      }
-
-      if (response.startsWith("{")) { // אם התקבלה תשובת נתונים תקינה
+      if (response.startsWith("{")) { // אם התקבלה תשובה שנראית כמו JSON
         return response; // מחזיר JSON לעיבוד תוצאת הזיהוי
       }
     }
@@ -593,11 +589,8 @@ String readCameraResponse() { // ממתין לתשובת המצלמה
 
 
 // =========================================================
-// חילוץ ערך מתשובת נתונים פשוטה
-// מוציא ערך טקסטואלי מתוך תשובת נתונים פשוט בלי ספרייה חיצונית
-// עובד גם אם יש רווחים:
-// דוגמה לשדה חומר
-// דוגמה לשדה חומר עם רווח
+// חילוץ ערך מתשובת JSON פשוטה
+// הפונקציה מיועדת לשדות טקסט פשוטים כמו category
 // =========================================================
 String extractStringValue(String jsonText, String key) { // מוציא ערך טקסטואלי מתשובת JSON פשוטה
   String keyPattern = "\"" + key + "\""; // בונה תבנית לחיפוש שדה בתשובת המצלמה
@@ -630,7 +623,7 @@ String extractStringValue(String jsonText, String key) { // מוציא ערך ט
 }
 
 
-bool cameraResponseFailed(String jsonText) { // בודק אם השרת או המצלמה דיווחו על כשל
+bool cameraResponseFailed(String jsonText) { // בודק אם המצלמה או השרת החזירו success:false
   jsonText.toLowerCase(); // מאחד כתיבה כדי לזהות success:false בכל צורה
   jsonText.replace(" ", ""); // מסיר רווחים כדי לבדוק את שדה ההצלחה
 
@@ -672,7 +665,7 @@ void requestCaptureFromCamera(bool requireUltrasonicConfirmation) { // מבקש 
 
   sendCommandToCamera("CAPTURE"); // מבקש מהמצלמה לצלם ולזהות
 
-  String response = readCameraResponse(); // שומר את תשובת המצלמה או השרת
+  String response = readCameraResponse(); // שומר את תשובת הזיהוי שהתקבלה
 
   if (response.length() == 0) { // אם לא התקבלה תשובה שימושית
     systemStatus = "Camera failed"; // מעדכן לדשבורד שאין תשובת מצלמה
@@ -682,7 +675,7 @@ void requestCaptureFromCamera(bool requireUltrasonicConfirmation) { // מבקש 
     return; // עוצר כי לא התקבלה תשובה מהמצלמה
   }
 
-  if (!response.startsWith("{")) { // אם תשובת המצלמה אינה נתונים תקינים
+  if (!response.startsWith("{")) { // אם תשובת המצלמה אינה נראית כמו JSON
     systemStatus = "Invalid camera response"; // מעדכן לדשבורד שהתשובה לא תקינה
     showOledMessage("CAPTURE FAILED", "Invalid response"); // מציג שתשובת המצלמה לא תקינה
     beepLong(); // מסמן שגיאה למשתמש
@@ -690,15 +683,15 @@ void requestCaptureFromCamera(bool requireUltrasonicConfirmation) { // מבקש 
     return; // עוצר כי התשובה אינה JSON תקין למיון
   }
 
-  if (cameraResponseFailed(response)) { // אם השרת הודיע על כשל זיהוי
-    systemStatus = "Server failed"; // מעדכן לדשבורד שכשל הזיהוי הגיע מהשרת
-    showOledMessage("CAMERA ERROR", "Try again"); // מציג שכשל הזיהוי הגיע מהשרת
+  if (cameraResponseFailed(response)) { // אם תשובת הזיהוי מדווחת על כשל
+    systemStatus = "Camera error"; // מעדכן לדשבורד שיש שגיאת מצלמה או זיהוי
+    showOledMessage("CAMERA ERROR", "Try again"); // מציג שיש שגיאת מצלמה או זיהוי
     beepLong(); // מסמן שגיאה למשתמש
     returnToReadyState(1500); // מחזיר את הפח להמתנה אחרי שגיאה
-    return; // עוצר כי השרת או המצלמה דיווחו על כשל
+    return; // עוצר כי תשובת הזיהוי דיווחה על כשל
   }
 
-  String category = extractCategoryFromCameraJson(response); // שומר את סוג החומר מהשרת
+  String category = extractCategoryFromCameraJson(response); // שומר את סוג החומר מתשובת הזיהוי
 
   if (category == "unknown") { // אם החומר לא זוהה כמיון תקין
     systemStatus = "Unknown"; // מעדכן לדשבורד שהתוצאה לא זוהתה
@@ -814,7 +807,7 @@ void sortToCategory(String category) { // מבצע את תהליך המיון ה
   bottomServo.write(BOTTOM_CENTER_ANGLE); // מחזיר את שער המיון למרכז
   delay(SERVO_SMALL_DELAY_MS); // מאפשר לשער התחתון לחזור למרכז
 
-  updateStatsForCategory(category); // שומר מיון מוצלח בסטטיסטיקה
+  updateStatsForCategory(category); // מעדכן ושומר מיון פיזי מוצלח בסטטיסטיקה
   showDoneScreen(); // מציג שהמיון הסתיים
   beepSuccess(); // מסמן למשתמש שהמיון הסתיים בהצלחה
 
