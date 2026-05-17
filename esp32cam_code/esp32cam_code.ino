@@ -60,6 +60,34 @@ bool cameraReady = false; // שומר אם המצלמה אותחלה בהצלח�
 // =========================================================
 // חיבור לרשת
 // =========================================================
+
+// =========================================================
+// Function declarations
+// =========================================================
+bool connectToWiFi(); // ???? ?? ?-ESP32-CAM ???? ??? ????? ?????? ????
+bool initCamera(); // ????? ?? ????? ?????? ??? ???? ??????
+void handleMainCommand(String command); // ???? ?????? CAPTURE ?????? ????? ?????
+String captureSendAndReturnJson(); // ????, ???? ???? ?????? JSON ???? ?????
+void turnFlashOn(); // ????? ???? ???? ?????
+void turnFlashOff(); // ???? ???? ???? ?????
+String sendPhotoBufferToServer(camera_fb_t* fb); // ???? ?? ????? ?-JPEG ???? Flask ?????? ?????
+
+// =========================================================
+// אתחול ראשוני
+// =========================================================
+void setup() { // מכין את רכיבי המערכת להפעלה
+  Serial.begin(115200); // פותח UART מול הבקר הראשי לקבלת CAPTURE והחזרת JSON
+  delay(1000); // נותן לרכיבים להתייצב אחרי ההפעלה
+
+  pinMode(FLASH_LED_PIN, OUTPUT); // מגדיר את הפלאש כפלט
+  digitalWrite(FLASH_LED_PIN, LOW); // מוודא שהפלאש כבוי בתחילת העבודה
+
+  connectToWiFi(); // מחבר את המצלמה לרשת בתחילת העבודה
+  cameraReady = initCamera(); // שומר אם המצלמה מוכנה לצילום
+
+// לא מדפיסים כלום כאן במצב עבודה רגיל.
+// הבקר הראשי יקבל תשובה רק כשישלח צילום.
+}
 bool connectToWiFi() { // מחבר את המצלמה לרשת
   WiFi.mode(WIFI_STA); // מגדיר את המצלמה כלקוח רשת
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // מתחבר לרשת כדי לשלוח תמונות לשרת
@@ -77,8 +105,6 @@ bool connectToWiFi() { // מחבר את המצלמה לרשת
 
   return false; // מחזיר שהפעולה נכשלה
 }
-
-
 // =========================================================
 // אתחול מצלמה
 // =========================================================
@@ -129,84 +155,40 @@ bool initCamera() { // מאתחל את מודול המצלמה
 
   return true; // מחזיר שהפעולה הצליחה
 }
-
-
 // =========================================================
-// פלאש
+// לולאת עבודה
 // =========================================================
-void turnFlashOn() { // מדליק תאורה לפני צילום
-  if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
-    digitalWrite(FLASH_LED_PIN, HIGH); // מדליק פלאש לפני צילום
-    delay(FLASH_STABILIZE_DELAY_MS); // ממתין לייצוב התאורה לפני הצילום
+void loop() { // מריץ את עבודת המערכת ברצף
+  if (Serial.available()) { // בודק אם הבקר שלח פקודה
+    String command = Serial.readStringUntil('\n'); // קורא פקודה מהבקר הראשי
+    handleMainCommand(command); // מפעיל טיפול בפקודת צילום מהבקר
   }
+
+  delay(20); // מונע קריאה רציפה מדי מהתקשורת
 }
-
-
-void turnFlashOff() { // מכבה תאורה אחרי צילום
-  if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
-    digitalWrite(FLASH_LED_PIN, LOW); // מכבה פלאש אחרי צילום
-  }
-}
-
-
 // =========================================================
-// שליחת תמונה לשרת
-// מחזיר את תשובת הנתונים שהשרת החזיר
+// טיפול בפקודת הבקר הראשי
 // =========================================================
-String sendPhotoBufferToServer(camera_fb_t* fb) { // שולח את התמונה לשרת הזיהוי
-  HTTPClient http; // יוצר אובייקט לשליחת התמונה לשרת
+void handleMainCommand(String command) { // מטפל בפקודה מהבקר הראשי
+  command.trim(); // מנקה רווחים מהפקודה שהתקבלה
 
-  http.begin(SERVER_URL); // פותח חיבור לשרת הזיהוי
-  http.setTimeout(HTTP_TIMEOUT_MS); // מגביל זמן המתנה לשרת
-
-  String boundary = "----SmartBinBoundary"; // יוצר גבול לבקשת העלאת התמונה
-  String contentType = "multipart/form-data; boundary=" + boundary; // מגדיר בקשת רשת עם תמונה
-
-  http.addHeader("Content-Type", contentType); // מגדיר שהבקשה כוללת תמונה
-
-  String bodyStart = // בונה את תחילת בקשת העלאת התמונה
-    "--" + boundary + "\r\n"
-    "Content-Disposition: form-data; name=\"image\"; filename=\"esp32cam.jpg\"\r\n"
-    "Content-Type: image/jpeg\r\n\r\n";
-
-  String bodyEnd = // בונה את סוף בקשת העלאת התמונה
-    "\r\n--" + boundary + "--\r\n";
-
-  int totalLength = bodyStart.length() + fb->len + bodyEnd.length(); // מחשב גודל מלא של הבקשה
-
-  uint8_t* requestBody = (uint8_t*)malloc(totalLength); // מקצה זיכרון לבקשת התמונה
-
-  if (!requestBody) { // אם אין מספיק זיכרון לשליחת התמונה
-    http.end(); // סוגר את חיבור השרת
-    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"ESP32-CAM memory allocation failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
+  if (command.length() == 0) { // אם התקבלה פקודה ריקה
+    return; // מתעלם מפקודה ריקה
   }
 
-  memcpy(requestBody, bodyStart.c_str(), bodyStart.length()); // מוסיף את פתיחת בקשת התמונה
-  memcpy(requestBody + bodyStart.length(), fb->buf, fb->len); // מוסיף את נתוני התמונה לבקשה
-  memcpy(requestBody + bodyStart.length() + fb->len, bodyEnd.c_str(), bodyEnd.length()); // מוסיף את סוף בקשת התמונה
+  if (command == "CAPTURE") { // אם הבקר ביקש צילום וזיהוי
+    String jsonResponse = captureSendAndReturnJson(); // שומר את התשובה שתישלח לבקר
 
-  int httpResponseCode = http.POST(requestBody, totalLength); // שולח את תמונת החפץ לשרת
+    jsonResponse.trim(); // מנקה רווחים מתשובת הזיהוי
 
-  free(requestBody); // משחרר זיכרון אחרי השליחה
-
-  if (httpResponseCode == 200) { // אם השרת קיבל את התמונה בהצלחה
-    String response = http.getString(); // קורא את תשובת הזיהוי מהשרת
-    response.trim(); // מנקה רווחים מתשובת השרת
-    http.end(); // סוגר את חיבור השרת
-
-    if (response.startsWith("{")) { // אם התקבלה תשובה שנראית כמו JSON
-      return response; // מחזיר את תשובת השרת לבקר הראשי
+    if (!jsonResponse.startsWith("{")) { // אם תשובת הזיהוי אינה נראית כמו JSON
+      jsonResponse = "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Invalid JSON response\"}"; // מייצר תשובת כשל כשהפורמט לא תקין
     }
 
-    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Server response was not valid JSON\"}"; // מחזיר כשל בפורמט שהבקר מבין
+    Serial.println(jsonResponse); // מחזיר לבקר הראשי תשובת זיהוי אחת
+    return; // עוצר כי פקודת הצילום כבר טופלה
   }
-
-  http.end(); // סוגר את חיבור השרת
-
-  return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"HTTP request failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
 }
-
-
 // =========================================================
 // צילום, שליחה והחזרת תשובה
 // =========================================================
@@ -264,59 +246,73 @@ String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהו
 
   return serverResponse; // מחזיר לבקר את תשובת השרת
 }
-
-
 // =========================================================
-// טיפול בפקודת הבקר הראשי
+// פלאש
 // =========================================================
-void handleMainCommand(String command) { // מטפל בפקודה מהבקר הראשי
-  command.trim(); // מנקה רווחים מהפקודה שהתקבלה
+void turnFlashOn() { // מדליק תאורה לפני צילום
+  if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
+    digitalWrite(FLASH_LED_PIN, HIGH); // מדליק פלאש לפני צילום
+    delay(FLASH_STABILIZE_DELAY_MS); // ממתין לייצוב התאורה לפני הצילום
+  }
+}
+void turnFlashOff() { // מכבה תאורה אחרי צילום
+  if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
+    digitalWrite(FLASH_LED_PIN, LOW); // מכבה פלאש אחרי צילום
+  }
+}
+// =========================================================
+// שליחת תמונה לשרת
+// מחזיר את תשובת הנתונים שהשרת החזיר
+// =========================================================
+String sendPhotoBufferToServer(camera_fb_t* fb) { // שולח את התמונה לשרת הזיהוי
+  HTTPClient http; // יוצר אובייקט לשליחת התמונה לשרת
 
-  if (command.length() == 0) { // אם התקבלה פקודה ריקה
-    return; // מתעלם מפקודה ריקה
+  http.begin(SERVER_URL); // פותח חיבור לשרת הזיהוי
+  http.setTimeout(HTTP_TIMEOUT_MS); // מגביל זמן המתנה לשרת
+
+  String boundary = "----SmartBinBoundary"; // יוצר גבול לבקשת העלאת התמונה
+  String contentType = "multipart/form-data; boundary=" + boundary; // מגדיר בקשת רשת עם תמונה
+
+  http.addHeader("Content-Type", contentType); // מגדיר שהבקשה כוללת תמונה
+
+  String bodyStart = // בונה את תחילת בקשת העלאת התמונה
+    "--" + boundary + "\r\n"
+    "Content-Disposition: form-data; name=\"image\"; filename=\"esp32cam.jpg\"\r\n"
+    "Content-Type: image/jpeg\r\n\r\n";
+
+  String bodyEnd = // בונה את סוף בקשת העלאת התמונה
+    "\r\n--" + boundary + "--\r\n";
+
+  int totalLength = bodyStart.length() + fb->len + bodyEnd.length(); // מחשב גודל מלא של הבקשה
+
+  uint8_t* requestBody = (uint8_t*)malloc(totalLength); // מקצה זיכרון לבקשת התמונה
+
+  if (!requestBody) { // אם אין מספיק זיכרון לשליחת התמונה
+    http.end(); // סוגר את חיבור השרת
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"ESP32-CAM memory allocation failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  if (command == "CAPTURE") { // אם הבקר ביקש צילום וזיהוי
-    String jsonResponse = captureSendAndReturnJson(); // שומר את התשובה שתישלח לבקר
+  memcpy(requestBody, bodyStart.c_str(), bodyStart.length()); // מוסיף את פתיחת בקשת התמונה
+  memcpy(requestBody + bodyStart.length(), fb->buf, fb->len); // מוסיף את נתוני התמונה לבקשה
+  memcpy(requestBody + bodyStart.length() + fb->len, bodyEnd.c_str(), bodyEnd.length()); // מוסיף את סוף בקשת התמונה
 
-    jsonResponse.trim(); // מנקה רווחים מתשובת הזיהוי
+  int httpResponseCode = http.POST(requestBody, totalLength); // שולח את תמונת החפץ לשרת
 
-    if (!jsonResponse.startsWith("{")) { // אם תשובת הזיהוי אינה נראית כמו JSON
-      jsonResponse = "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Invalid JSON response\"}"; // מייצר תשובת כשל כשהפורמט לא תקין
+  free(requestBody); // משחרר זיכרון אחרי השליחה
+
+  if (httpResponseCode == 200) { // אם השרת קיבל את התמונה בהצלחה
+    String response = http.getString(); // קורא את תשובת הזיהוי מהשרת
+    response.trim(); // מנקה רווחים מתשובת השרת
+    http.end(); // סוגר את חיבור השרת
+
+    if (response.startsWith("{")) { // אם התקבלה תשובה שנראית כמו JSON
+      return response; // מחזיר את תשובת השרת לבקר הראשי
     }
 
-    Serial.println(jsonResponse); // מחזיר לבקר הראשי תשובת זיהוי אחת
-    return; // עוצר כי פקודת הצילום כבר טופלה
-  }
-}
-
-
-// =========================================================
-// אתחול ראשוני
-// =========================================================
-void setup() { // מכין את רכיבי המערכת להפעלה
-  Serial.begin(115200); // פותח UART מול הבקר הראשי לקבלת CAPTURE והחזרת JSON
-  delay(1000); // נותן לרכיבים להתייצב אחרי ההפעלה
-
-  pinMode(FLASH_LED_PIN, OUTPUT); // מגדיר את הפלאש כפלט
-  digitalWrite(FLASH_LED_PIN, LOW); // מוודא שהפלאש כבוי בתחילת העבודה
-
-  connectToWiFi(); // מחבר את המצלמה לרשת בתחילת העבודה
-  cameraReady = initCamera(); // שומר אם המצלמה מוכנה לצילום
-
-// לא מדפיסים כלום כאן במצב עבודה רגיל.
-// הבקר הראשי יקבל תשובה רק כשישלח צילום.
-}
-
-
-// =========================================================
-// לולאת עבודה
-// =========================================================
-void loop() { // מריץ את עבודת המערכת ברצף
-  if (Serial.available()) { // בודק אם הבקר שלח פקודה
-    String command = Serial.readStringUntil('\n'); // קורא פקודה מהבקר הראשי
-    handleMainCommand(command); // מפעיל טיפול בפקודת צילום מהבקר
+    return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Server response was not valid JSON\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  delay(20); // מונע קריאה רציפה מדי מהתקשורת
+  http.end(); // סוגר את חיבור השרת
+
+  return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"HTTP request failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
 }

@@ -124,44 +124,44 @@ Servo topServo; // סרוו שפותח וסוגר את הדלת
 // =========================================================
 // Function declarations
 // =========================================================
-void initializeServos();
-void initializeUltrasonic();
-void initializeCameraCommunication();
-void initializeBuzzer();
-void initializeOled();
-void moveToReadyPosition();
-void loadStats();
-void connectToWiFi();
-void setupWebServer();
-void beepSuccess();
-void showReadyScreen();
-void checkUltrasonicAndHandleObject();
-void handleObjectDetected();
-void requestCaptureFromCamera(bool requireUltrasonicConfirmation);
-float readDistanceCm();
-float readAverageDistanceCm();
-bool confirmObjectByAverageDistance();
-void clearCameraBuffer();
-void sendCommandToCamera(String command);
-String readCameraResponse();
-bool cameraResponseFailed(String jsonText);
-String extractCategoryFromCameraJson(String jsonText);
-String extractStringValue(String jsonText, String key);
-void returnToReadyState(unsigned long waitBeforeReadyScreenMs);
-int getBottomAngleForCategory(String category);
-void sortToCategory(String category);
-void saveStats();
-void resetStats();
-void updateStatsForCategory(String category);
-void handleDashboard();
-void handleResetStats();
-void showOledMessage(String line1, String line2 = "", String line3 = "", String line4 = "");
-void showCategoryScreen(String category);
-void showUnknownScreen();
-void showDoneScreen();
-void beepShort();
-void beepDouble();
-void beepLong();
+void initializeServos(); // מחבר את הסרווים לפינים ומכין את מנגנון המיון
+void initializeUltrasonic(); // מגדיר את פיני חיישן המרחק לזיהוי חפצים
+void initializeCameraCommunication(); // פותח UART מול ה-ESP32-CAM
+void initializeBuzzer(); // מכין את הבאזר למשוב קולי
+void initializeOled(); // מאתחל את מסך ה-OLED להצגת מצב
+void moveToReadyPosition(); // מחזיר את הדלת והשער למצב המתנה
+void loadStats(); // טוען סטטיסטיקות שמורות מהזיכרון הקבוע
+void connectToWiFi(); // מחבר את הבקר לרשת עבור הדשבורד
+void setupWebServer(); // מגדיר את כתובות הדשבורד בדפדפן
+void beepSuccess(); // משמיע צליל הצלחה
+void showReadyScreen(); // מציג שהפח מוכן לחפץ הבא
+void checkUltrasonicAndHandleObject(); // בודק אם חפץ נכנס ומתחיל טיפול
+void handleObjectDetected(); // מטפל בחפץ אחרי זיהוי ראשוני
+void requestCaptureFromCamera(bool requireUltrasonicConfirmation); // מבקש צילום מהמצלמה וממשיך למיון לפי התשובה
+float readDistanceCm(); // קורא מדידת מרחק אחת מהחיישן
+bool confirmObjectByAverageDistance(); // מאשר שהחפץ עדיין נמצא לפני צילום
+float readAverageDistanceCm(); // מחשב ממוצע של כמה מדידות מרחק
+void sendCommandToCamera(String command); // שולח פקודה למצלמה דרך UART
+void clearCameraBuffer(); // מנקה מידע ישן מתקשורת המצלמה
+String readCameraResponse(); // מחכה וקורא תשובת JSON מהמצלמה
+bool cameraResponseFailed(String jsonText); // בודק אם תשובת המצלמה מסמנת כשל
+String extractCategoryFromCameraJson(String jsonText); // מחלץ את קטגוריית החומר מה-JSON
+String extractStringValue(String jsonText, String key); // מחלץ ערך טקסטואלי משדה JSON פשוט
+void sortToCategory(String category); // מפעיל את תהליך המיון הפיזי לפי קטגוריה
+int getBottomAngleForCategory(String category); // מחזיר את זווית שער המיון לפי קטגוריה
+void returnToReadyState(unsigned long waitBeforeReadyScreenMs); // מחזיר את המערכת למצב מוכן
+void updateStatsForCategory(String category); // מעדכן מונים לפי תוצאת המיון
+void saveStats(); // שומר את המונים בזיכרון הקבוע
+void handleDashboard(); // בונה ומחזיר את עמוד הדשבורד
+void handleResetStats(); // מטפל באיפוס מונים מהדשבורד
+void resetStats(); // מאפס את כל הסטטיסטיקות
+void showOledMessage(String line1, String line2 = "", String line3 = "", String line4 = ""); // מציג הודעת מצב כללית במסך
+void showCategoryScreen(String category); // מציג את הקטגוריה שזוהתה
+void showUnknownScreen(); // מציג שהחומר לא זוהה למיון
+void showDoneScreen(); // מציג שהמיון הסתיים
+void beepShort(); // משמיע צפצוף קצר
+void beepDouble(); // משמיע שני צפצופים
+void beepLong(); // משמיע צפצוף ארוך לשגיאה
 
 // =========================================================
 // Setup
@@ -169,6 +169,7 @@ void beepLong();
 // =========================================================
 // אתחול ראשוני
 // =========================================================
+
 void setup() { // מכין את רכיבי המערכת להפעלה
   delay(1000); // נותן לרכיבים להתייצב אחרי ההפעלה
 
@@ -186,7 +187,135 @@ void setup() { // מכין את רכיבי המערכת להפעלה
   beepSuccess(); // מסמן שהמערכת עלתה בהצלחה
   showReadyScreen(); // מציג שהפח מוכן לעבודה
 }
+// =========================================================
+// Sorting and servo functions
+// =========================================================
+// =========================================================
+// אתחול סרווים
+// =========================================================
+void initializeServos() { // מחבר את מנועי המיון לפינים שלהם
+  bottomServo.attach(BOTTOM_SERVO_PIN); // מחבר את סרוו שער המיון לפין הבקרה
+  topServo.attach(TOP_SERVO_PIN); // מחבר את סרוו הדלת העליונה לפין הבקרה
 
+  delay(500); // נותן לסרווים להתייצב אחרי החיבור
+}
+// =========================================================
+// Ultrasonic distance sensor functions
+// =========================================================
+// =========================================================
+// אתחול חיישן מרחק
+// =========================================================
+void initializeUltrasonic() { // מכין את חיישן המרחק לזיהוי חפצים
+  pinMode(ULTRASONIC_TRIG_PIN, OUTPUT); // מכין פין לשליחת פולס מדידה
+  pinMode(ULTRASONIC_ECHO_PIN, INPUT); // מכין פין לקבלת ההד מהחיישן
+
+  digitalWrite(ULTRASONIC_TRIG_PIN, LOW); // מבטיח שהחיישן מתחיל ללא פולס
+}
+// =========================================================
+// ESP32-CAM UART communication functions
+// =========================================================
+// =========================================================
+// אתחול תקשורת מצלמה
+// =========================================================
+void initializeCameraCommunication() { // פותח תקשורת מול המצלמה
+  Serial2.begin(115200, SERIAL_8N1, CAMERA_RX_PIN, CAMERA_TX_PIN); // פותח UART בין הבקר הראשי ל-ESP32-CAM
+}
+// =========================================================
+// Buzzer feedback functions
+// =========================================================
+// =========================================================
+// פעולות באזר
+// =========================================================
+void initializeBuzzer() { // מכין את הבאזר למשוב קולי
+  pinMode(BUZZER_PIN, OUTPUT); // מגדיר את הבאזר כפלט
+  noTone(BUZZER_PIN); // עוצר את צליל הבאזר
+}
+// =========================================================
+// OLED display functions
+// =========================================================
+// =========================================================
+// פעולות מסך
+// =========================================================
+void initializeOled() { // מפעיל את המסך להצגת מצב הפח
+  Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN); // פותח תקשורת I2C למסך המצב
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) { // בודק אם המסך מחובר וזמין
+    oledReady = false; // מסמן שלא ניתן להשתמש במסך
+    return; // עוצר כי המסך לא אותחל
+  }
+
+  oledReady = true; // מסמן שהמסך מוכן להצגת הודעות
+
+  display.clearDisplay(); // מנקה הודעה קודמת מהמסך
+  display.display(); // מרענן את המסך בפועל
+}
+// =========================================================
+// מעבר למצב מוכן
+// =========================================================
+void moveToReadyPosition() { // מחזיר את הסרווים למצב המתנה
+  topServo.write(TOP_CLOSED_ANGLE); // סוגר את הדלת כדי שלא ייפול חפץ בזמן המתנה
+  delay(SERVO_SMALL_DELAY_MS); // מאפשר לסרוו הדלת להשלים סגירה
+
+  bottomServo.write(BOTTOM_CENTER_ANGLE); // מחזיר את שער המיון למרכז
+  delay(SERVO_SMALL_DELAY_MS); // מאפשר לשער התחתון לחזור למרכז
+}
+// =========================================================
+// Statistics functions
+// =========================================================
+void loadStats() { // טוען מונים קודמים מהזיכרון הקבוע
+  preferences.begin("smartbin", false); // פותח אזור שמירה קבוע לפרויקט
+  totalSortedCount = preferences.getInt("total", 0); // טוען סך מיונים פיזיים מוצלחים
+  plasticCount = preferences.getInt("plastic", 0); // טוען כמות פלסטיק
+  paperCount = preferences.getInt("paper", 0); // טוען כמות נייר
+  metalCount = preferences.getInt("metal", 0); // טוען כמות מתכת
+  unknownCount = preferences.getInt("unknown", 0); // טוען כמות חפצים ללא יעד מיון
+  lastCategory = preferences.getString("last", "none"); // טוען את הקטגוריה האחרונה
+}
+// =========================================================
+// WiFi and dashboard functions
+// =========================================================
+// =========================================================
+// חיבור WiFi ודשבורד
+// =========================================================
+void connectToWiFi() { // מחבר את הפח לרשת בשביל צפייה בסטטיסטיקות
+  WiFi.mode(WIFI_STA); // מגדיר את ה-ESP32 כלקוח ברשת המקומית
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // מחבר את ה-ESP32 לרשת בשביל הדשבורד
+
+  int attempts = 0; // סופר ניסיונות חיבור לרשת
+
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) { // ממתין לחיבור בלי להיתקע לנצח
+    delay(500); // נותן ל-WiFi זמן להשלים ניסיון חיבור
+    attempts++; // מתקדם לניסיון החיבור הבא
+  }
+
+  if (WiFi.status() == WL_CONNECTED) { // אם הדשבורד זמין ברשת
+    showOledMessage("WiFi OK", WiFi.localIP().toString()); // מציג את כתובת הדשבורד על המסך
+    delay(1200); // נותן זמן קצר לקרוא את כתובת ה-IP
+  } else { // אם החיבור לרשת לא הצליח
+    showOledMessage("WiFi FAILED", "Dashboard off"); // מודיע שהדשבורד לא זמין כרגע
+    delay(1200); // נותן זמן קצר לראות את הודעת הרשת
+  }
+}
+void setupWebServer() { // מגדיר את כתובות הדשבורד
+  server.on("/", handleDashboard); // מחבר את כתובת הבית לעמוד הסטטיסטיקות
+  server.on("/reset", handleResetStats); // מחבר כתובת איפוס למוני הדשבורד
+  server.begin(); // מתחיל להאזין לבקשות דפדפן
+}
+void beepSuccess() { // משמיע צליל הצלחה בסיום
+  tone(BUZZER_PIN, 1200); // מתחיל צליל הצלחה ראשון
+  delay(120); // משאיר את הטון הראשון פעיל לזמן קצר
+  noTone(BUZZER_PIN); // עוצר את צליל הבאזר
+
+  delay(100); // יוצר מרווח קצר בין שני צלילי ההצלחה
+
+  tone(BUZZER_PIN, 1600); // מתחיל צליל הצלחה שני
+  delay(160); // משאיר את הטון השני פעיל לזמן קצר
+  noTone(BUZZER_PIN); // עוצר את צליל הבאזר
+}
+void showReadyScreen() { // מציג שהפח מוכן לחפץ הבא
+  systemStatus = "Ready"; // מעדכן לדשבורד שהפח ממתין
+  showOledMessage("READY", "Waiting for object", autoModeEnabled ? "Auto: ON" : "Auto: OFF"); // מציג שהפח ממתין לחפץ
+}
 // =========================================================
 // Main loop
 // =========================================================
@@ -202,7 +331,6 @@ void loop() { // מריץ את עבודת המערכת ברצף
 
   delay(100); // נותן מרווח קצר בין בדיקות חיישן
 }
-
 // =========================================================
 // Main detection and sorting flow
 // =========================================================
@@ -234,7 +362,29 @@ void checkUltrasonicAndHandleObject() { // בודק אוטומטית אם הוכ
     lastDetectionTime = millis(); // מחדש השהיה אחרי סיום הטיפול בחפץ
   }
 }
+// =========================================================
+// קריאת מרחק בסנטימטרים
+// מחזיר מרחק בס"מ
+// אם אין קריאה תקינה, מחזיר -1
+// =========================================================
+float readDistanceCm() { // מודד אם יש חפץ קרוב לפתח הפח
+  digitalWrite(ULTRASONIC_TRIG_PIN, LOW); // מוודא שפולס המדידה מתחיל ממצב שקט
+  delayMicroseconds(2); // מכין את פולס המדידה
 
+  digitalWrite(ULTRASONIC_TRIG_PIN, HIGH); // שולח פולס מדידה לחיישן
+  delayMicroseconds(10); // יוצר פולס קצר לחיישן המרחק
+
+  digitalWrite(ULTRASONIC_TRIG_PIN, LOW); // מסיים את פולס המדידה
+
+  long duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH, 30000); // מודד כמה זמן לקח להד לחזור
+
+  if (duration == 0) { // אם החיישן לא החזיר קריאה תקינה
+    return -1; // מסמן שאין קריאת מרחק תקינה
+  }
+
+  float distanceCm = duration * 0.0343 / 2.0; // מחשב מרחק לפי זמן ההד
+  return distanceCm; // מחזיר את המרחק שחושב
+}
 // =========================================================
 // טיפול בחפץ שזוהה
 // כשיש חפץ, מחכים רגע ואז מבקשים מהמצלמה קטגוריה
@@ -246,7 +396,6 @@ void handleObjectDetected() { // מטפל בחפץ אחרי זיהוי ראשו�
 
   requestCaptureFromCamera(true); // מבקש צילום אחרי אישור חפץ
 }
-
 // =========================================================
 // בקשת צילום מהמצלמה
 // שולח צילום למצלמה, מקבל תשובת נתונים, ומפעיל מיון לפי קטגוריה
@@ -306,44 +455,27 @@ void requestCaptureFromCamera(bool requireUltrasonicConfirmation) { // מבקש 
 
   sortToCategory(category); // מפעיל מיון פיזי לפי סוג החומר
 }
-
 // =========================================================
-// Ultrasonic distance sensor functions
+// אישור חפץ לפי מרחק ממוצע
+// בודק ממוצע לפני צילום
 // =========================================================
-// =========================================================
-// אתחול חיישן מרחק
-// =========================================================
-void initializeUltrasonic() { // מכין את חיישן המרחק לזיהוי חפצים
-  pinMode(ULTRASONIC_TRIG_PIN, OUTPUT); // מכין פין לשליחת פולס מדידה
-  pinMode(ULTRASONIC_ECHO_PIN, INPUT); // מכין פין לקבלת ההד מהחיישן
+bool confirmObjectByAverageDistance() { // מאשר שהחפץ עדיין נמצא לפני שליחת צילום
+  float averageDistance = readAverageDistanceCm(); // בודק מרחק ממוצע כדי לא לצלם בלי חפץ
 
-  digitalWrite(ULTRASONIC_TRIG_PIN, LOW); // מבטיח שהחיישן מתחיל ללא פולס
-}
-
-// =========================================================
-// קריאת מרחק בסנטימטרים
-// מחזיר מרחק בס"מ
-// אם אין קריאה תקינה, מחזיר -1
-// =========================================================
-float readDistanceCm() { // מודד אם יש חפץ קרוב לפתח הפח
-  digitalWrite(ULTRASONIC_TRIG_PIN, LOW); // מוודא שפולס המדידה מתחיל ממצב שקט
-  delayMicroseconds(2); // מכין את פולס המדידה
-
-  digitalWrite(ULTRASONIC_TRIG_PIN, HIGH); // שולח פולס מדידה לחיישן
-  delayMicroseconds(10); // יוצר פולס קצר לחיישן המרחק
-
-  digitalWrite(ULTRASONIC_TRIG_PIN, LOW); // מסיים את פולס המדידה
-
-  long duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH, 30000); // מודד כמה זמן לקח להד לחזור
-
-  if (duration == 0) { // אם החיישן לא החזיר קריאה תקינה
-    return -1; // מסמן שאין קריאת מרחק תקינה
+  if (averageDistance < 0) { // אם אין קריאת מרחק אמינה
+    showOledMessage("ULTRASONIC ERROR", "No valid reading"); // מציג שגיאת חיישן מרחק
+    beepLong(); // מסמן שגיאה למשתמש
+    return false; // עוצר צילום כי אין אישור אמין מהחיישן
   }
 
-  float distanceCm = duration * 0.0343 / 2.0; // מחשב מרחק לפי זמן ההד
-  return distanceCm; // מחזיר את המרחק שחושב
-}
+  if (averageDistance > OBJECT_DETECTION_THRESHOLD_CM) { // אם החפץ כבר לא קרוב מספיק
+    showOledMessage("NO OBJECT", "Average:", String(averageDistance) + " cm"); // מציג שהחפץ לא אושר לצילום
+    beepLong(); // מסמן שגיאה למשתמש
+    return false; // עוצר צילום כי החפץ כבר לא בטווח
+  }
 
+  return true; // מאשר שאפשר להמשיך לצילום במצלמה
+}
 // =========================================================
 // קריאת מרחק ממוצע
 // ממוצע קריאות תקינות בלבד
@@ -371,49 +503,6 @@ float readAverageDistanceCm() { // מבצע כמה מדידות כדי למנו�
 
   return totalDistance / validReadings; // מחזיר מרחק ממוצע מדגימות תקינות
 }
-
-// =========================================================
-// אישור חפץ לפי מרחק ממוצע
-// בודק ממוצע לפני צילום
-// =========================================================
-bool confirmObjectByAverageDistance() { // מאשר שהחפץ עדיין נמצא לפני שליחת צילום
-  float averageDistance = readAverageDistanceCm(); // בודק מרחק ממוצע כדי לא לצלם בלי חפץ
-
-  if (averageDistance < 0) { // אם אין קריאת מרחק אמינה
-    showOledMessage("ULTRASONIC ERROR", "No valid reading"); // מציג שגיאת חיישן מרחק
-    beepLong(); // מסמן שגיאה למשתמש
-    return false; // עוצר צילום כי אין אישור אמין מהחיישן
-  }
-
-  if (averageDistance > OBJECT_DETECTION_THRESHOLD_CM) { // אם החפץ כבר לא קרוב מספיק
-    showOledMessage("NO OBJECT", "Average:", String(averageDistance) + " cm"); // מציג שהחפץ לא אושר לצילום
-    beepLong(); // מסמן שגיאה למשתמש
-    return false; // עוצר צילום כי החפץ כבר לא בטווח
-  }
-
-  return true; // מאשר שאפשר להמשיך לצילום במצלמה
-}
-
-// =========================================================
-// ESP32-CAM UART communication functions
-// =========================================================
-// =========================================================
-// אתחול תקשורת מצלמה
-// =========================================================
-void initializeCameraCommunication() { // פותח תקשורת מול המצלמה
-  Serial2.begin(115200, SERIAL_8N1, CAMERA_RX_PIN, CAMERA_TX_PIN); // פותח UART בין הבקר הראשי ל-ESP32-CAM
-}
-
-// =========================================================
-// ניקוי תקשורת המצלמה
-// מנקה תשובות ישנות מהמצלמה לפני שליחת פקודה חדשה
-// =========================================================
-void clearCameraBuffer() { // מנקה תשובות ישנות מהמצלמה
-  while (Serial2.available()) { // כל עוד נשאר מידע ישן מהמצלמה
-    Serial2.read(); // מוחק תו ישן כדי שהצילום הבא יקבל תשובה נקייה
-  }
-}
-
 // =========================================================
 // שליחת פקודה למצלמה
 // שולח פקודה ל-מצלמת הזיהוי
@@ -423,7 +512,15 @@ void sendCommandToCamera(String command) { // שולח פקודה למצלמה �
 
   Serial2.println(command); // שולח למצלמה פקודת CAPTURE דרך UART
 }
-
+// =========================================================
+// ניקוי תקשורת המצלמה
+// מנקה תשובות ישנות מהמצלמה לפני שליחת פקודה חדשה
+// =========================================================
+void clearCameraBuffer() { // מנקה תשובות ישנות מהמצלמה
+  while (Serial2.available()) { // כל עוד נשאר מידע ישן מהמצלמה
+    Serial2.read(); // מוחק תו ישן כדי שהצילום הבא יקבל תשובה נקייה
+  }
+}
 // =========================================================
 // קריאת תשובת מצלמה
 // קורא תשובה תקינה מה-מצלמת הזיהוי
@@ -450,7 +547,6 @@ String readCameraResponse() { // ממתין לתשובת המצלמה
 
   return ""; // מסמן שלא התקבלה תשובה מהמצלמה
 }
-
 // =========================================================
 // JSON extraction functions
 // =========================================================
@@ -460,7 +556,6 @@ bool cameraResponseFailed(String jsonText) { // בודק אם המצלמה או 
 
   return jsonText.indexOf("\"success\":false") != -1; // מחזיר אם התשובה מסמנת כשל
 }
-
 // =========================================================
 // חילוץ קטגוריה מתשובת המצלמה
 // מוציא את קטגוריה מהתשובה של המצלמה
@@ -477,7 +572,6 @@ String extractCategoryFromCameraJson(String jsonText) { // מוציא את סו�
 
   return "unknown"; // מחזיר שהחומר לא מוכר למערכת
 }
-
 // =========================================================
 // חילוץ ערך מתשובת JSON פשוטה
 // הפונקציה מיועדת לשדות טקסט פשוטים כמו category
@@ -511,66 +605,6 @@ String extractStringValue(String jsonText, String key) { // מוציא ערך ט
 
   return jsonText.substring(firstQuote + 1, secondQuote); // מחזיר את הערך שנמצא בתשובה
 }
-
-// =========================================================
-// Sorting and servo functions
-// =========================================================
-// =========================================================
-// אתחול סרווים
-// =========================================================
-void initializeServos() { // מחבר את מנועי המיון לפינים שלהם
-  bottomServo.attach(BOTTOM_SERVO_PIN); // מחבר את סרוו שער המיון לפין הבקרה
-  topServo.attach(TOP_SERVO_PIN); // מחבר את סרוו הדלת העליונה לפין הבקרה
-
-  delay(500); // נותן לסרווים להתייצב אחרי החיבור
-}
-
-// =========================================================
-// מעבר למצב מוכן
-// =========================================================
-void moveToReadyPosition() { // מחזיר את הסרווים למצב המתנה
-  topServo.write(TOP_CLOSED_ANGLE); // סוגר את הדלת כדי שלא ייפול חפץ בזמן המתנה
-  delay(SERVO_SMALL_DELAY_MS); // מאפשר לסרוו הדלת להשלים סגירה
-
-  bottomServo.write(BOTTOM_CENTER_ANGLE); // מחזיר את שער המיון למרכז
-  delay(SERVO_SMALL_DELAY_MS); // מאפשר לשער התחתון לחזור למרכז
-}
-
-// =========================================================
-// חזרה למצב מוכן
-// =========================================================
-void returnToReadyState(unsigned long waitBeforeReadyScreenMs) { // מחזיר את הפח למסך המתנה
-  moveToReadyPosition(); // מחזיר דלת ושער למצב התחלה
-
-  if (waitBeforeReadyScreenMs > 0) { // אם צריך להציג שגיאה לפני חזרה
-    delay(waitBeforeReadyScreenMs); // משאיר את הודעת השגיאה על המסך לפני READY
-  }
-
-  showReadyScreen(); // מציג שהפח מוכן לעבודה
-}
-
-// =========================================================
-// בחירת זווית תחתונה לפי קטגוריה
-// =========================================================
-int getBottomAngleForCategory(String category) { // בוחר זווית שער לפי סוג החומר
-  category.trim(); // מנקה את תוצאת הזיהוי לפני בחירת זווית
-  category.toLowerCase(); // מאחד כתיבה כדי להתאים לשמות הקטגוריות
-
-  if (category == "plastic") { // אם החומר הוא פלסטיק
-    return PLASTIC_ANGLE; // מחזיר את זווית השער לפח הפלסטיק
-  }
-
-  if (category == "paper") { // אם החומר הוא נייר
-    return PAPER_ANGLE; // מחזיר את זווית השער לפח הנייר
-  }
-
-  if (category == "metal") { // אם החומר הוא מתכת
-    return METAL_ANGLE; // מחזיר את זווית השער לפח המתכת
-  }
-
-  return BOTTOM_CENTER_ANGLE; // מחזיר את השער למרכז כברירת מחדל
-}
-
 // =========================================================
 // מיון לפי קטגוריה
 // =========================================================
@@ -626,39 +660,39 @@ void sortToCategory(String category) { // מבצע את תהליך המיון ה
   delay(1500); // משאיר את הודעת הסיום לפני חזרה להמתנה
   showReadyScreen(); // מציג שהפח מוכן לעבודה
 }
-
 // =========================================================
-// Statistics functions
+// בחירת זווית תחתונה לפי קטגוריה
 // =========================================================
-void loadStats() { // טוען מונים קודמים מהזיכרון הקבוע
-  preferences.begin("smartbin", false); // פותח אזור שמירה קבוע לפרויקט
-  totalSortedCount = preferences.getInt("total", 0); // טוען סך מיונים פיזיים מוצלחים
-  plasticCount = preferences.getInt("plastic", 0); // טוען כמות פלסטיק
-  paperCount = preferences.getInt("paper", 0); // טוען כמות נייר
-  metalCount = preferences.getInt("metal", 0); // טוען כמות מתכת
-  unknownCount = preferences.getInt("unknown", 0); // טוען כמות חפצים ללא יעד מיון
-  lastCategory = preferences.getString("last", "none"); // טוען את הקטגוריה האחרונה
-}
+int getBottomAngleForCategory(String category) { // בוחר זווית שער לפי סוג החומר
+  category.trim(); // מנקה את תוצאת הזיהוי לפני בחירת זווית
+  category.toLowerCase(); // מאחד כתיבה כדי להתאים לשמות הקטגוריות
 
-void saveStats() { // שומר מונים אחרי אירוע כדי שלא יאבדו בכיבוי
-  preferences.putInt("total", totalSortedCount); // שומר סך מיונים פיזיים מוצלחים
-  preferences.putInt("plastic", plasticCount); // שומר כמות פלסטיק
-  preferences.putInt("paper", paperCount); // שומר כמות נייר
-  preferences.putInt("metal", metalCount); // שומר כמות מתכת
-  preferences.putInt("unknown", unknownCount); // שומר כמות חפצים ללא יעד מיון
-  preferences.putString("last", lastCategory); // שומר את הקטגוריה האחרונה
-}
+  if (category == "plastic") { // אם החומר הוא פלסטיק
+    return PLASTIC_ANGLE; // מחזיר את זווית השער לפח הפלסטיק
+  }
 
-void resetStats() { // מאפס את סטטיסטיקות הדשבורד
-  totalSortedCount = 0; // מאפס סך מיונים פיזיים מוצלחים
-  plasticCount = 0; // מאפס כמות פלסטיק
-  paperCount = 0; // מאפס כמות נייר
-  metalCount = 0; // מאפס כמות מתכת
-  unknownCount = 0; // מאפס כמות חפצים ללא יעד מיון
-  lastCategory = "none"; // מנקה את הקטגוריה האחרונה
-  saveStats(); // שומר את האיפוס בזיכרון קבוע
-}
+  if (category == "paper") { // אם החומר הוא נייר
+    return PAPER_ANGLE; // מחזיר את זווית השער לפח הנייר
+  }
 
+  if (category == "metal") { // אם החומר הוא מתכת
+    return METAL_ANGLE; // מחזיר את זווית השער לפח המתכת
+  }
+
+  return BOTTOM_CENTER_ANGLE; // מחזיר את השער למרכז כברירת מחדל
+}
+// =========================================================
+// חזרה למצב מוכן
+// =========================================================
+void returnToReadyState(unsigned long waitBeforeReadyScreenMs) { // מחזיר את הפח למסך המתנה
+  moveToReadyPosition(); // מחזיר דלת ושער למצב התחלה
+
+  if (waitBeforeReadyScreenMs > 0) { // אם צריך להציג שגיאה לפני חזרה
+    delay(waitBeforeReadyScreenMs); // משאיר את הודעת השגיאה על המסך לפני READY
+  }
+
+  showReadyScreen(); // מציג שהפח מוכן לעבודה
+}
 void updateStatsForCategory(String category) { // מעדכן מונים לפי תוצאת הזיהוי
   category.trim(); // מנקה את תוצאת הזיהוי לפני השוואה לקטגוריות
   category.toLowerCase(); // מאחד את כתיבת הקטגוריה לפני עדכון מונים
@@ -682,39 +716,14 @@ void updateStatsForCategory(String category) { // מעדכן מונים לפי �
 
   saveStats(); // שומר את הסטטיסטיקה לאחר עדכון הקטגוריה
 }
-
-// =========================================================
-// WiFi and dashboard functions
-// =========================================================
-// =========================================================
-// חיבור WiFi ודשבורד
-// =========================================================
-void connectToWiFi() { // מחבר את הפח לרשת בשביל צפייה בסטטיסטיקות
-  WiFi.mode(WIFI_STA); // מגדיר את ה-ESP32 כלקוח ברשת המקומית
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // מחבר את ה-ESP32 לרשת בשביל הדשבורד
-
-  int attempts = 0; // סופר ניסיונות חיבור לרשת
-
-  while (WiFi.status() != WL_CONNECTED && attempts < 40) { // ממתין לחיבור בלי להיתקע לנצח
-    delay(500); // נותן ל-WiFi זמן להשלים ניסיון חיבור
-    attempts++; // מתקדם לניסיון החיבור הבא
-  }
-
-  if (WiFi.status() == WL_CONNECTED) { // אם הדשבורד זמין ברשת
-    showOledMessage("WiFi OK", WiFi.localIP().toString()); // מציג את כתובת הדשבורד על המסך
-    delay(1200); // נותן זמן קצר לקרוא את כתובת ה-IP
-  } else { // אם החיבור לרשת לא הצליח
-    showOledMessage("WiFi FAILED", "Dashboard off"); // מודיע שהדשבורד לא זמין כרגע
-    delay(1200); // נותן זמן קצר לראות את הודעת הרשת
-  }
+void saveStats() { // שומר מונים אחרי אירוע כדי שלא יאבדו בכיבוי
+  preferences.putInt("total", totalSortedCount); // שומר סך מיונים פיזיים מוצלחים
+  preferences.putInt("plastic", plasticCount); // שומר כמות פלסטיק
+  preferences.putInt("paper", paperCount); // שומר כמות נייר
+  preferences.putInt("metal", metalCount); // שומר כמות מתכת
+  preferences.putInt("unknown", unknownCount); // שומר כמות חפצים ללא יעד מיון
+  preferences.putString("last", lastCategory); // שומר את הקטגוריה האחרונה
 }
-
-void setupWebServer() { // מגדיר את כתובות הדשבורד
-  server.on("/", handleDashboard); // מחבר את כתובת הבית לעמוד הסטטיסטיקות
-  server.on("/reset", handleResetStats); // מחבר כתובת איפוס למוני הדשבורד
-  server.begin(); // מתחיל להאזין לבקשות דפדפן
-}
-
 void handleDashboard() { // שולח לדפדפן את עמוד הסטטיסטיקות
   String html = ""; // בונה את עמוד הדשבורד
 
@@ -764,7 +773,6 @@ void handleDashboard() { // שולח לדפדפן את עמוד הסטטיסטי
 
   server.send(200, "text/html", html); // מחזיר את הדשבורד לדפדפן
 }
-
 void handleResetStats() { // מטפל בבקשת איפוס מהדשבורד
   resetStats(); // מאפס מונים ושומר כדי שהאיפוס יישאר אחרי כיבוי
 
@@ -779,27 +787,15 @@ void handleResetStats() { // מטפל בבקשת איפוס מהדשבורד
 
   server.send(200, "text/html", html); // מחזיר לדפדפן אישור איפוס
 }
-
-// =========================================================
-// OLED display functions
-// =========================================================
-// =========================================================
-// פעולות מסך
-// =========================================================
-void initializeOled() { // מפעיל את המסך להצגת מצב הפח
-  Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN); // פותח תקשורת I2C למסך המצב
-
-  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) { // בודק אם המסך מחובר וזמין
-    oledReady = false; // מסמן שלא ניתן להשתמש במסך
-    return; // עוצר כי המסך לא אותחל
-  }
-
-  oledReady = true; // מסמן שהמסך מוכן להצגת הודעות
-
-  display.clearDisplay(); // מנקה הודעה קודמת מהמסך
-  display.display(); // מרענן את המסך בפועל
+void resetStats() { // מאפס את סטטיסטיקות הדשבורד
+  totalSortedCount = 0; // מאפס סך מיונים פיזיים מוצלחים
+  plasticCount = 0; // מאפס כמות פלסטיק
+  paperCount = 0; // מאפס כמות נייר
+  metalCount = 0; // מאפס כמות מתכת
+  unknownCount = 0; // מאפס כמות חפצים ללא יעד מיון
+  lastCategory = "none"; // מנקה את הקטגוריה האחרונה
+  saveStats(); // שומר את האיפוס בזיכרון קבוע
 }
-
 void showOledMessage(String line1, String line2, String line3, String line4) { // מציג למשתמש את מצב הפעולה הנוכחי
   if (!oledReady) { // אם המסך לא זמין להצגה
     return; // עוצר כי אין מסך זמין להצגת הודעה
@@ -834,62 +830,28 @@ void showOledMessage(String line1, String line2, String line3, String line4) { /
 
   display.display(); // מרענן את המסך בפועל
 }
-
-void showReadyScreen() { // מציג שהפח מוכן לחפץ הבא
-  systemStatus = "Ready"; // מעדכן לדשבורד שהפח ממתין
-  showOledMessage("READY", "Waiting for object", autoModeEnabled ? "Auto: ON" : "Auto: OFF"); // מציג שהפח ממתין לחפץ
-}
-
 void showCategoryScreen(String category) { // מציג את סוג החומר שהתקבל
   category.toUpperCase(); // הופך את שם החומר לברור יותר על המסך
   showOledMessage("CATEGORY:", category, "Sorting..."); // מציג את סוג החומר בזמן מיון
 }
-
 void showUnknownScreen() { // מציג שהחומר לא זוהה למיון
   showOledMessage("UNKNOWN", "Sorting cancelled"); // מציג שלא נמצא יעד מיון מתאים
 }
-
 void showDoneScreen() { // מציג שהמיון הסתיים
   showOledMessage("DONE", "Ready again"); // מציג שהמיון הסתיים והפח מוכן
 }
-
-// =========================================================
-// Buzzer feedback functions
-// =========================================================
-// =========================================================
-// פעולות באזר
-// =========================================================
-void initializeBuzzer() { // מכין את הבאזר למשוב קולי
-  pinMode(BUZZER_PIN, OUTPUT); // מגדיר את הבאזר כפלט
-  noTone(BUZZER_PIN); // עוצר את צליל הבאזר
-}
-
 void beepShort() { // משמיע צפצוף קצר לאישור פעולה
   tone(BUZZER_PIN, 1000); // מתחיל צפצוף אישור קצר
   delay(120); // משאיר את צפצוף האישור פעיל לזמן קצר
   noTone(BUZZER_PIN); // עוצר את צליל הבאזר
 }
-
 void beepDouble() { // משמיע שני צפצופים לפני מיון
   beepShort(); // משמיע צפצוף ראשון לפני תחילת המיון
   delay(120); // יוצר מרווח קצר בין שני הצפצופים
   beepShort(); // משמיע צפצוף שני לפני תחילת המיון
 }
-
 void beepLong() { // משמיע צפצוף ארוך לשגיאה
   tone(BUZZER_PIN, 700); // מתחיל צפצוף שגיאה
   delay(500); // משאיר את צפצוף השגיאה פעיל לחצי שנייה
-  noTone(BUZZER_PIN); // עוצר את צליל הבאזר
-}
-
-void beepSuccess() { // משמיע צליל הצלחה בסיום
-  tone(BUZZER_PIN, 1200); // מתחיל צליל הצלחה ראשון
-  delay(120); // משאיר את הטון הראשון פעיל לזמן קצר
-  noTone(BUZZER_PIN); // עוצר את צליל הבאזר
-
-  delay(100); // יוצר מרווח קצר בין שני צלילי ההצלחה
-
-  tone(BUZZER_PIN, 1600); // מתחיל צליל הצלחה שני
-  delay(160); // משאיר את הטון השני פעיל לזמן קצר
   noTone(BUZZER_PIN); // עוצר את צליל הבאזר
 }
