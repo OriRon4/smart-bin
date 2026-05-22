@@ -5,11 +5,11 @@
 // =========================================================
 // רשת ושרת
 // =========================================================
-const char* WIFI_SSID = "College"; // שם הרשת שאליה המצלמה מתחברת
-const char* WIFI_PASSWORD = "Amal1@st"; // סיסמת הרשת של המצלמה
+const char* WIFI_SSID = "Adiel_Bezeq"; // שם הרשת שאליה המצלמה מתחברת
+const char* WIFI_PASSWORD = "0522554441"; // סיסמת הרשת של המצלמה
 
 // לשנות ל-כתובת רשת של המחשב שעליו רץ שרת הזיהוי
-const char* SERVER_URL = "http://10.0.0.231:5000/classify"; // כתובת השרת שמקבל את התמונה
+const char* SERVER_URL = "http://10.0.0.33:5000/classify"; // כתובת השרת שמקבל את התמונה
 
 
 // =========================================================
@@ -68,6 +68,7 @@ bool connectToWiFi(); // ???? ?? ?-ESP32-CAM ???? ??? ????? ?????? ????
 bool initCamera(); // ????? ?? ????? ?????? ??? ???? ??????
 void handleMainCommand(String command); // ???? ?????? CAPTURE ?????? ????? ?????
 String captureSendAndReturnJson(); // ????, ???? ???? ?????? JSON ???? ?????
+void pulseFlash(unsigned long durationMs);
 void turnFlashOn(); // ????? ???? ???? ?????
 void turnFlashOff(); // ???? ???? ???? ?????
 String sendPhotoBufferToServer(camera_fb_t* fb); // ???? ?? ????? ?-JPEG ???? Flask ?????? ?????
@@ -177,6 +178,8 @@ void handleMainCommand(String command) { // מטפל בפקודה מהבקר ה�
   }
 
   if (command == "CAPTURE") { // אם הבקר ביקש צילום וזיהוי
+    pulseFlash(90);
+
     String jsonResponse = captureSendAndReturnJson(); // שומר את התשובה שתישלח לבקר
 
     jsonResponse.trim(); // מנקה רווחים מתשובת הזיהוי
@@ -197,14 +200,6 @@ String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהו
     return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Camera not initialized\"}"; // מחזיר כשל בפורמט שהבקר מבין
   }
 
-  if (WiFi.status() != WL_CONNECTED) { // אם צריך להתחבר מחדש לרשת
-    bool wifiOk = connectToWiFi(); // שומר אם החיבור לרשת הצליח
-
-    if (!wifiOk) { // אם המצלמה לא הצליחה להתחבר לרשת
-      return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"WiFi not connected\"}"; // מחזיר כשל בפורמט שהבקר מבין
-    }
-  }
-
   turnFlashOn(); // מדליק תאורה לצילום ברור
 
 // צילום חימום לייצוב המצלמה לפני התמונה המרכזית
@@ -222,6 +217,15 @@ String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהו
 
   if (!fb) { // אם הצילום מהמצלמה נכשל
     return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"Camera capture failed\"}"; // מחזיר כשל בפורמט שהבקר מבין
+  }
+
+  if (WiFi.status() != WL_CONNECTED) { // אם צריך להתחבר מחדש לרשת
+    bool wifiOk = connectToWiFi(); // שומר אם החיבור לרשת הצליח
+
+    if (!wifiOk) { // אם המצלמה לא הצליחה להתחבר לרשת
+      esp_camera_fb_return(fb);
+      return "{\"success\":false,\"category\":\"unknown\",\"confidence\":0,\"reason\":\"WiFi not connected\"}"; // מחזיר כשל בפורמט שהבקר מבין
+    }
   }
 
   String serverResponse = ""; // שומר את תשובת השרת לזיהוי
@@ -249,6 +253,15 @@ String captureSendAndReturnJson() { // מצלם ומחזיר תשובת זיהו
 // =========================================================
 // פלאש
 // =========================================================
+void pulseFlash(unsigned long durationMs) {
+  if (USE_FLASH) {
+    digitalWrite(FLASH_LED_PIN, HIGH);
+    delay(durationMs);
+    digitalWrite(FLASH_LED_PIN, LOW);
+    delay(80);
+  }
+}
+
 void turnFlashOn() { // מדליק תאורה לפני צילום
   if (USE_FLASH) { // אם מוגדר להשתמש בפלאש
     digitalWrite(FLASH_LED_PIN, HIGH); // מדליק פלאש לפני צילום

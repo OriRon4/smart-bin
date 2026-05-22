@@ -431,8 +431,15 @@ void requestCaptureFromCamera(bool requireUltrasonicConfirmation) { // מבקש 
   }
 
   if (cameraResponseFailed(response)) { // אם תשובת הזיהוי מדווחת על כשל
-    systemStatus = "Camera error"; // מעדכן לדשבורד שיש שגיאת מצלמה או זיהוי
-    showOledMessage("CAMERA ERROR", "Try again"); // מציג שיש שגיאת מצלמה או זיהוי
+    String reason = extractStringValue(response, "reason");
+    reason.trim();
+
+    if (reason.length() == 0) {
+      reason = "Try again";
+    }
+
+    systemStatus = String("Camera error: ") + reason; // מעדכן לדשבורד שיש שגיאת מצלמה או זיהוי
+    showOledMessage("CAMERA ERROR", reason); // מציג את סיבת השגיאה שהמצלמה החזירה
     beepLong(); // מסמן שגיאה למשתמש
     returnToReadyState(1500); // מחזיר את הפח להמתנה אחרי שגיאה
     return; // עוצר כי תשובת הזיהוי דיווחה על כשל
