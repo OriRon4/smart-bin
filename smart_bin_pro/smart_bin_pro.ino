@@ -31,8 +31,8 @@ const int CAMERA_TX_PIN = 17; // פין שליחת פקודות למצלמה
 // =========================================================
 // הגדרות WiFi לדשבורד
 // =========================================================
-const char* WIFI_SSID = "College"; // שם הרשת שהפח מתחבר אליה לדשבורד
-const char* WIFI_PASSWORD = "Amal1@st"; // סיסמת הרשת להפעלת הדשבורד
+const char* WIFI_SSID = "Adiel_Bezeq"; // שם הרשת שהפח מתחבר אליה לדשבורד
+const char* WIFI_PASSWORD = "0522554441"; // סיסמת הרשת להפעלת הדשבורד
 
 
 // =========================================================
@@ -79,14 +79,14 @@ const int TOP_OPEN_ANGLE = 0; // זווית פתיחת הדלת העליונה
 // =========================================================
 // זמני פעולה
 // =========================================================
-const unsigned long WAIT_BEFORE_START_MS = 3000; // השהיה קצרה לפני התחלת רצף המיון
-const unsigned long WAIT_AFTER_BOTTOM_MOVE_MS = 1500; // זמן לשער התחתון להגיע לפח שנבחר
-const unsigned long WAIT_WHILE_TOP_OPEN_MS = 2000; // משך פתיחת הדלת לשחרור החפץ
-const unsigned long WAIT_AFTER_TOP_CLOSE_MS = 1500; // זמן אחרי סגירת הדלת לפני החזרת השער
+const unsigned long WAIT_BEFORE_START_MS = 500; // השהיה קצרה לפני התחלת רצף המיון
+const unsigned long WAIT_AFTER_BOTTOM_MOVE_MS = 500; // זמן לשער התחתון להגיע לפח שנבחר
+const unsigned long WAIT_WHILE_TOP_OPEN_MS = 1000; // משך פתיחת הדלת לשחרור החפץ
+const unsigned long WAIT_AFTER_TOP_CLOSE_MS = 500; // זמן אחרי סגירת הדלת לפני החזרת השער
 const unsigned long SERVO_SMALL_DELAY_MS = 500; // זמן קצר להשלמת תנועת סרוו
 
 const unsigned long OBJECT_SETTLE_DELAY_MS = 1500; // זמן ייצוב החפץ לפני צילום
-const unsigned long DETECTION_COOLDOWN_MS = 10000; // מונע זיהוי חוזר של אותו חפץ
+const unsigned long DETECTION_COOLDOWN_MS = 5000; // מונע זיהוי חוזר של אותו חפץ
 
 const unsigned long CAMERA_RESPONSE_TIMEOUT_MS = 30000; // זמן מקסימלי להמתנה לתשובת המצלמה
 
@@ -97,7 +97,7 @@ const unsigned long CAMERA_RESPONSE_TIMEOUT_MS = 30000; // זמן מקסימלי
 // =========================================================
 float OBJECT_DETECTION_THRESHOLD_CM = 8; // מרחק שממנו הפח מזהה חפץ
 const int ULTRASONIC_CONFIRM_SAMPLES = 7; // מספר דגימות לאישור חפץ
-const unsigned long ULTRASONIC_SAMPLE_DELAY_MS = 60; // רווח זמן בין דגימות המרחק
+const unsigned long ULTRASONIC_SAMPLE_DELAY_MS = 650; // רווח זמן בין דגימות המרחק כדי לוודא שהחפץ יציב לאורך כמה שניות
 
 
 // =========================================================

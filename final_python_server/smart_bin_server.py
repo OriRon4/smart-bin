@@ -17,7 +17,7 @@ import os
 # חשוב:
 # המפתח שלך נחשף בצ'אט.
 # אחרי הבדיקות תבטל אותו בגוגל ותיצור חדש.
-API_KEY = "AIzaSyAK_zQxezhx82y8Lo4Cr95ZGqPaWQPJsw8"
+API_KEY = "AIzaSyBzHwYBF2msro18Q_jvCRXPs7oGpcKF73c"
 
 GEMINI_MODELS = ["gemini-2.5-flash"]
 
