@@ -31,8 +31,8 @@ const int CAMERA_TX_PIN = 17; // פין שליחת פקודות למצלמה
 // =========================================================
 // הגדרות WiFi לדשבורד
 // =========================================================
-const char* WIFI_SSID = "Adiel_Bezeq"; // שם הרשת שהפח מתחבר אליה לדשבורד
-const char* WIFI_PASSWORD = "0522554441"; // סיסמת הרשת להפעלת הדשבורד
+const char* WIFI_SSID = "College"; // שם הרשת שהפח מתחבר אליה לדשבורד
+const char* WIFI_PASSWORD = "Amal1@st"; // סיסמת הרשת להפעלת הדשבורד
 
 
 // =========================================================
@@ -125,6 +125,7 @@ Servo topServo; // סרוו שפותח וסוגר את הדלת
 // Function declarations
 // =========================================================
 void initializeServos(); // מחבר את הסרווים לפינים ומכין את מנגנון המיון
+void initializeSerialCommands(); // פותח תקשורת Serial לפקודות בדיקה ידניות מהמחשב
 void initializeUltrasonic(); // מגדיר את פיני חיישן המרחק לזיהוי חפצים
 void initializeCameraCommunication(); // פותח UART מול ה-ESP32-CAM
 void initializeBuzzer(); // מכין את הבאזר למשוב קולי
@@ -135,6 +136,9 @@ void connectToWiFi(); // מחבר את הבקר לרשת עבור הדשבורד
 void setupWebServer(); // מגדיר את כתובות הדשבורד בדפדפן
 void beepSuccess(); // משמיע צליל הצלחה
 void showReadyScreen(); // מציג שהפח מוכן לחפץ הבא
+void handleSerialCommands(); // קורא פקודות מה-Serial Monitor ומזיז סרווים ידנית
+void handleSerialCommand(String command); // מפענח פקודת Serial אחת ומפעיל אותה
+void moveBottomServoToAngle(int angle); // מזיז את הסרוו התחתון לזווית מבוקשת
 void checkUltrasonicAndHandleObject(); // בודק אם חפץ נכנס ומתחיל טיפול
 void handleObjectDetected(); // מטפל בחפץ אחרי זיהוי ראשוני
 void requestCaptureFromCamera(bool requireUltrasonicConfirmation); // מבקש צילום מהמצלמה וממשיך למיון לפי התשובה
@@ -173,6 +177,7 @@ void beepLong(); // משמיע צפצוף ארוך לשגיאה
 void setup() { // מכין את רכיבי המערכת להפעלה
   delay(1000); // נותן לרכיבים להתייצב אחרי ההפעלה
 
+  initializeSerialCommands(); // מאפשר שליחת פקודות ידניות דרך Serial Monitor
   initializeServos(); // מפעיל את הסרווים של הדלת והשער
   initializeUltrasonic(); // מפעיל את חיישן זיהוי החפץ
   initializeCameraCommunication(); // פותח את הקשר למצלמה
@@ -190,6 +195,15 @@ void setup() { // מכין את רכיבי המערכת להפעלה
 // =========================================================
 // Sorting and servo functions
 // =========================================================
+// =========================================================
+// אתחול סרווים
+// =========================================================
+void initializeSerialCommands() { // פותח Serial Monitor לפקודות ידניות
+  Serial.begin(115200); // מאפשר לשלוח PLASTIC, PAPER, METAL או b <angle>
+  Serial.setTimeout(50); // מונע המתנה ארוכה בזמן קריאת פקודה קצרה
+
+  Serial.println("Smart bin ready for serial commands: PLASTIC, PAPER, METAL, b <angle>");
+}
 // =========================================================
 // אתחול סרווים
 // =========================================================
@@ -317,6 +331,74 @@ void showReadyScreen() { // מציג שהפח מוכן לחפץ הבא
   showOledMessage("READY", "Waiting for object", autoModeEnabled ? "Auto: ON" : "Auto: OFF"); // מציג שהפח ממתין לחפץ
 }
 // =========================================================
+// Serial Monitor manual commands
+// =========================================================
+void handleSerialCommands() { // בודק אם התקבלה פקודה ידנית מהמחשב
+  if (!Serial.available()) { // אם אין מידע חדש ב-Serial Monitor
+    return; // חוזר מיד כדי לא לעכב את הלולאה הראשית
+  }
+
+  String command = Serial.readStringUntil('\n'); // קורא פקודה אחת עד סוף שורה
+  handleSerialCommand(command); // מפענח ומפעיל את הפקודה שהתקבלה
+}
+void handleSerialCommand(String command) { // מפעיל פקודת Serial אחת
+  command.trim(); // מנקה רווחים וירידת שורה מסביב לפקודה
+
+  if (command.length() == 0) { // אם נשלחה שורה ריקה
+    return; // אין מה לבצע
+  }
+
+  String normalizedCommand = command; // שומר עותק להשוואות בלי תלות באותיות גדולות
+  normalizedCommand.toLowerCase(); // מאפשר PLASTIC/plastic וגם b/B
+
+  if (normalizedCommand == "plastic") { // פקודת בדיקה לפח הפלסטיק
+    moveBottomServoToAngle(PLASTIC_ANGLE); // מזיז את הכף המנתבת לזווית פלסטיק
+    Serial.println("Bottom servo moved to PLASTIC angle: " + String(PLASTIC_ANGLE));
+    return;
+  }
+
+  if (normalizedCommand == "paper") { // פקודת בדיקה לפח הנייר
+    moveBottomServoToAngle(PAPER_ANGLE); // מזיז את הכף המנתבת לזווית נייר
+    Serial.println("Bottom servo moved to PAPER angle: " + String(PAPER_ANGLE));
+    return;
+  }
+
+  if (normalizedCommand == "metal") { // פקודת בדיקה לפח המתכת
+    moveBottomServoToAngle(METAL_ANGLE); // מזיז את הכף המנתבת לזווית מתכת
+    Serial.println("Bottom servo moved to METAL angle: " + String(METAL_ANGLE));
+    return;
+  }
+
+  if (normalizedCommand.startsWith("b ")) { // פקודת זווית ידנית לסרוו התחתון, למשל b 140
+    String angleText = normalizedCommand.substring(2); // לוקח את המספר שאחרי b
+    angleText.trim(); // מנקה רווחים סביב המספר
+
+    for (int i = 0; i < angleText.length(); i++) { // מוודא שכל התווים הם ספרות
+      if (!isDigit(angleText.charAt(i))) { // אם יש תו שאינו ספרה
+        Serial.println("Invalid bottom servo angle. Use b 0-180, for example: b 140");
+        return;
+      }
+    }
+
+    int angle = angleText.toInt(); // ממיר את הזווית למספר
+
+    if (angleText.length() == 0 || angle < 0 || angle > 180) { // בודק שהזווית חוקית לסרוו
+      Serial.println("Invalid bottom servo angle. Use b 0-180, for example: b 140");
+      return;
+    }
+
+    moveBottomServoToAngle(angle); // מזיז את הסרוו התחתון לזווית המבוקשת
+    Serial.println("Bottom servo moved to angle: " + String(angle));
+    return;
+  }
+
+  Serial.println("Unknown command. Use PLASTIC, PAPER, METAL, or b <angle>.");
+}
+void moveBottomServoToAngle(int angle) { // מזיז את הסרוו התחתון לזווית נתונה
+  bottomServo.write(angle); // שולח לסרוו התחתון את הזווית המבוקשת
+  showOledMessage("MANUAL SERVO", "Bottom angle:", String(angle)); // מציג את פעולת הבדיקה הידנית
+}
+// =========================================================
 // Main loop
 // =========================================================
 // =========================================================
@@ -324,6 +406,8 @@ void showReadyScreen() { // מציג שהפח מוכן לחפץ הבא
 // =========================================================
 void loop() { // מריץ את עבודת המערכת ברצף
   server.handleClient(); // מטפל בבקשות מהדשבורד בלי לעצור את המערכת
+
+  handleSerialCommands(); // מאפשר פקודות ידניות דרך Serial Monitor
 
   if (autoModeEnabled) { // אם המצב האוטומטי פעיל
     checkUltrasonicAndHandleObject(); // בודק אם יש חפץ לטיפול

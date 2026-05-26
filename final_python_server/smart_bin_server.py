@@ -17,7 +17,7 @@ import os
 # חשוב:
 # המפתח שלך נחשף בצ'אט.
 # אחרי הבדיקות תבטל אותו בגוגל ותיצור חדש.
-API_KEY = "AIzaSyBzHwYBF2msro18Q_jvCRXPs7oGpcKF73c"
+API_KEY = "AIzaSyBHC4ETfJ1-z0OiqsOiFZoFfDf205VVUfU "
 
 GEMINI_MODELS = ["gemini-2.5-flash"]
 
@@ -51,6 +51,9 @@ Important rules:
 - If the image is too dark, blurry, empty, or unclear, return unknown.
 - Return only valid JSON.
 - Do not write anything outside the JSON.
+-paper object probably white piece of a4 paper folded and wrapped in a film, cardboard box, paper packaging, paper receipt, paper bag, paper cup, paper plate, paper carton, crumpled light brown paper packaging or a paper bag, if its uncler blurry and rectangle shape with faint diagonal lines its paper
+-plastic object probably plastic bottle, plastic cap, plastic wrapper, plastic bag, plastic cup,
+-metal object probably coin, aluminum foil, metal cap, paper clip, metal can, coin 
 
 JSON format:
 {
